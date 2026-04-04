@@ -153,7 +153,7 @@ Enables optional WHERE/ORDER BY clauses controlled at runtime via `-- :if @param
 
 When a parameter is marked with `:if`, the generated code:
 - Makes the parameter a pointer (`*T`) in the params struct — `nil` means "skip this clause"
-- Adds a `bool` field for flag-only parameters (e.g. ORDER BY toggles not bound to a SQL `$N`)
+- Adds a `bool` field for flag-only parameters (e.g. ORDER BY toggles that appear only in `:if` annotations, not as `col = $N` predicate values)
 - Calls the generated `DynamicSQL()` helper at runtime to strip inactive lines and renumber placeholders
 
 ```yaml
