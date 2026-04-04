@@ -206,7 +206,7 @@ rows, err := db.Query(ctx, dynQuery, dynArgs...)
 | Syntax | Behaviour |
 |---|---|
 | `AND col = @param -- :if @param` | Inline — skip line if param is nil/false |
-| `AND (a = @a OR b = @b) -- :if @a @b` | Multi-condition — skip if **any** param is inactive |
+| `AND (a = @a AND b = @b) -- :if @a @b` | Multi-condition — skip if **any** param is inactive |
 | `-- :if @flag` (standalone) | Block — skip the **next** line if flag is false |
 
 A `DynamicSQL` helper is emitted into `dynfilter.go` in the output package. PostgreSQL accepts non-sequential `$N` placeholders so the original numbering is preserved.
