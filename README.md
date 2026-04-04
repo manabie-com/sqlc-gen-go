@@ -186,6 +186,13 @@ ORDER BY
   id ASC;
 ```
 
+**Note:**
+For complex cases with ORDER BY, we recommend using CASE statements because they do not affect query performance like WHERE clauses:
+```sql
+CASE WHEN @flag1 THEN id ASC END,
+CASE WHEN @flag2 THEN id DESC END;
+```
+
 **Generated Go**
 
 ```go
@@ -197,8 +204,12 @@ type SearchUsersParams struct {
     HasOrders   bool       // false → EXISTS block skipped
 }
 
-// Runtime: DynamicSQL strips inactive lines before executing
-rows, err := db.Query(ctx, dynQuery, dynArgs...)
+func (q *SearchQueries) SearchUsers(ctx context.Context, db DBTX, arg SearchUsersParams) ([]*User, error) {
+...
+    dynQuery, dynArgs := DynamicSQL(SearchUsers, []any{arg.Name, arg.Email, arg.Phone, arg.OrdersSince, arg.HasOrders})
+    rows, err := db.Query(ctx, dynQuery, dynArgs...)
+...
+}
 ```
 
 **Annotation rules**
