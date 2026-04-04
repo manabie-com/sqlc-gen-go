@@ -139,7 +139,10 @@ func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{ dbarg }} {{.A
 {{end}}
 
 {{define "queryCodeStdExec"}}
-    {{- if .Arg.HasSqlcSlices }}
+    {{- if .HasDynFilter }}
+        dynQuery, dynArgs := DynamicSQL({{.ConstantName}}, []any{ {{.DynFilterArgs}} })
+        {{- queryRetval . }} {{ queryMethod . }}(ctx, dynQuery, dynArgs...)
+    {{- else if .Arg.HasSqlcSlices }}
         query := {{.ConstantName}}
         var queryParams []interface{}
         {{- if .Arg.Struct }}

@@ -21,7 +21,7 @@ func NewOrdersQueries() *OrdersQueries {
 type OrdersQueries struct {
 }
 
-const createOrder = `-- name: CreateOrder :one
+const CreateOrder = `-- name: CreateOrder :one
 INSERT INTO orders (user_id, amount, status)
 VALUES ($1, $2, $3)
 RETURNING id, user_id, amount, status, created_at
@@ -36,7 +36,7 @@ type CreateOrderParams struct {
 func (q *OrdersQueries) CreateOrder(ctx context.Context, db DBTX, arg CreateOrderParams) (*Order, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "OrdersQueries.CreateOrder")
 	defer tracer.End()
-	row := db.QueryRow(ctx, createOrder, arg.UserID, arg.Amount, arg.Status)
+	row := db.QueryRow(ctx, CreateOrder, arg.UserID, arg.Amount, arg.Status)
 	var i Order
 	err := row.Scan(
 		&i.ID,
@@ -48,7 +48,7 @@ func (q *OrdersQueries) CreateOrder(ctx context.Context, db DBTX, arg CreateOrde
 	return &i, err
 }
 
-const getOrder = `-- name: GetOrder :one
+const GetOrder = `-- name: GetOrder :one
 SELECT id, user_id, amount, status, created_at FROM orders WHERE id = $1 LIMIT 1
 `
 
@@ -59,7 +59,7 @@ type GetOrderParams struct {
 func (q *OrdersQueries) GetOrder(ctx context.Context, db DBTX, arg GetOrderParams) (*Order, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "OrdersQueries.GetOrder")
 	defer tracer.End()
-	row := db.QueryRow(ctx, getOrder, arg.ID)
+	row := db.QueryRow(ctx, GetOrder, arg.ID)
 	var i Order
 	err := row.Scan(
 		&i.ID,
@@ -74,7 +74,7 @@ func (q *OrdersQueries) GetOrder(ctx context.Context, db DBTX, arg GetOrderParam
 	return &i, err
 }
 
-const getUserOrderSummary = `-- name: GetUserOrderSummary :one
+const GetUserOrderSummary = `-- name: GetUserOrderSummary :one
 SELECT u.name, COUNT(o.id) as order_count, COALESCE(SUM(o.amount), 0) as total_spent
 FROM users u
 LEFT JOIN orders o ON o.user_id = u.id
@@ -95,7 +95,7 @@ type GetUserOrderSummaryRow struct {
 func (q *OrdersQueries) GetUserOrderSummary(ctx context.Context, db DBTX, arg GetUserOrderSummaryParams) (*GetUserOrderSummaryRow, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "OrdersQueries.GetUserOrderSummary")
 	defer tracer.End()
-	row := db.QueryRow(ctx, getUserOrderSummary, arg.ID)
+	row := db.QueryRow(ctx, GetUserOrderSummary, arg.ID)
 	var i GetUserOrderSummaryRow
 	err := row.Scan(&i.Name, &i.OrderCount, &i.TotalSpent)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -104,7 +104,7 @@ func (q *OrdersQueries) GetUserOrderSummary(ctx context.Context, db DBTX, arg Ge
 	return &i, err
 }
 
-const listOrdersByUser = `-- name: ListOrdersByUser :many
+const ListOrdersByUser = `-- name: ListOrdersByUser :many
 SELECT id, user_id, amount, status, created_at FROM orders WHERE user_id = $1 ORDER BY created_at DESC
 `
 
@@ -115,7 +115,7 @@ type ListOrdersByUserParams struct {
 func (q *OrdersQueries) ListOrdersByUser(ctx context.Context, db DBTX, arg ListOrdersByUserParams) ([]*Order, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "OrdersQueries.ListOrdersByUser")
 	defer tracer.End()
-	rows, err := db.Query(ctx, listOrdersByUser, arg.UserID)
+	rows, err := db.Query(ctx, ListOrdersByUser, arg.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +140,7 @@ func (q *OrdersQueries) ListOrdersByUser(ctx context.Context, db DBTX, arg ListO
 	return items, nil
 }
 
-const updateOrderStatus = `-- name: UpdateOrderStatus :exec
+const UpdateOrderStatus = `-- name: UpdateOrderStatus :exec
 UPDATE orders SET status = $2 WHERE id = $1
 `
 
@@ -152,7 +152,7 @@ type UpdateOrderStatusParams struct {
 func (q *OrdersQueries) UpdateOrderStatus(ctx context.Context, db DBTX, arg UpdateOrderStatusParams) error {
 	ctx, tracer := tracing.StartTracing(ctx, "OrdersQueries.UpdateOrderStatus")
 	defer tracer.End()
-	_, err := db.Exec(ctx, updateOrderStatus, arg.ID, arg.Status)
+	_, err := db.Exec(ctx, UpdateOrderStatus, arg.ID, arg.Status)
 	return err
 }
 

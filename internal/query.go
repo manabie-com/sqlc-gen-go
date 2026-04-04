@@ -183,7 +183,7 @@ func (v QueryValue) HasSqlcSlices() bool {
 		return v.Column != nil && v.Column.IsSqlcSlice
 	}
 	for _, v := range v.Struct.Fields {
-		if v.Column.IsSqlcSlice {
+		if v.Column != nil && v.Column.IsSqlcSlice {
 			return true
 		}
 	}
@@ -267,6 +267,12 @@ type Query struct {
 	Arg          QueryValue
 	// Used for :copyfrom
 	Table *plugin.Identifier
+	// HasDynFilter is true when the query has -- :if annotations and
+	// emit_dynamic_filter is enabled.
+	HasDynFilter bool
+	// DynFilterArgs is the pre-rendered args expression for the DynamicSQL call,
+	// e.g. "arg.A, arg.B, arg.C, arg.IdAsc, arg.IdDesc"
+	DynFilterArgs string
 }
 
 func (q Query) IsSelect() bool {

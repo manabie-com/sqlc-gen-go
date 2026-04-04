@@ -21,7 +21,7 @@ func NewProductQueries() *ProductQueries {
 type ProductQueries struct {
 }
 
-const createProduct = `-- name: CreateProduct :one
+const CreateProduct = `-- name: CreateProduct :one
 INSERT INTO products (name, price, stock)
 VALUES ($1, $2, $3)
 RETURNING id, name, price, stock, created_at
@@ -36,7 +36,7 @@ type CreateProductParams struct {
 func (q *ProductQueries) CreateProduct(ctx context.Context, db DBTX, arg CreateProductParams) (*Product, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "ProductQueries.CreateProduct")
 	defer tracer.End()
-	row := db.QueryRow(ctx, createProduct, arg.Name, arg.Price, arg.Stock)
+	row := db.QueryRow(ctx, CreateProduct, arg.Name, arg.Price, arg.Stock)
 	var i Product
 	err := row.Scan(
 		&i.ID,
@@ -48,7 +48,7 @@ func (q *ProductQueries) CreateProduct(ctx context.Context, db DBTX, arg CreateP
 	return &i, err
 }
 
-const deleteProduct = `-- name: DeleteProduct :exec
+const DeleteProduct = `-- name: DeleteProduct :exec
 DELETE FROM products WHERE id = $1
 `
 
@@ -59,11 +59,11 @@ type DeleteProductParams struct {
 func (q *ProductQueries) DeleteProduct(ctx context.Context, db DBTX, arg DeleteProductParams) error {
 	ctx, tracer := tracing.StartTracing(ctx, "ProductQueries.DeleteProduct")
 	defer tracer.End()
-	_, err := db.Exec(ctx, deleteProduct, arg.ID)
+	_, err := db.Exec(ctx, DeleteProduct, arg.ID)
 	return err
 }
 
-const getProduct = `-- name: GetProduct :one
+const GetProduct = `-- name: GetProduct :one
 SELECT id, name, price, stock, created_at FROM products WHERE id = $1 LIMIT 1
 `
 
@@ -74,7 +74,7 @@ type GetProductParams struct {
 func (q *ProductQueries) GetProduct(ctx context.Context, db DBTX, arg GetProductParams) (*Product, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "ProductQueries.GetProduct")
 	defer tracer.End()
-	row := db.QueryRow(ctx, getProduct, arg.ID)
+	row := db.QueryRow(ctx, GetProduct, arg.ID)
 	var i Product
 	err := row.Scan(
 		&i.ID,
@@ -89,7 +89,7 @@ func (q *ProductQueries) GetProduct(ctx context.Context, db DBTX, arg GetProduct
 	return &i, err
 }
 
-const getProductPrice = `-- name: GetProductPrice :one
+const GetProductPrice = `-- name: GetProductPrice :one
 SELECT price FROM products WHERE id = $1 LIMIT 1
 `
 
@@ -100,7 +100,7 @@ type GetProductPriceParams struct {
 func (q *ProductQueries) GetProductPrice(ctx context.Context, db DBTX, arg GetProductPriceParams) (decimal.Decimal, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "ProductQueries.GetProductPrice")
 	defer tracer.End()
-	row := db.QueryRow(ctx, getProductPrice, arg.ID)
+	row := db.QueryRow(ctx, GetProductPrice, arg.ID)
 	var price decimal.Decimal
 	err := row.Scan(&price)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -109,14 +109,14 @@ func (q *ProductQueries) GetProductPrice(ctx context.Context, db DBTX, arg GetPr
 	return price, err
 }
 
-const getProductsInStock = `-- name: GetProductsInStock :one
+const GetProductsInStock = `-- name: GetProductsInStock :one
 SELECT stock FROM products WHERE stock > 0 LIMIT 1
 `
 
 func (q *ProductQueries) GetProductsInStock(ctx context.Context, db DBTX) (*int32, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "ProductQueries.GetProductsInStock")
 	defer tracer.End()
-	row := db.QueryRow(ctx, getProductsInStock)
+	row := db.QueryRow(ctx, GetProductsInStock)
 	var stock *int32
 	err := row.Scan(&stock)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -125,14 +125,14 @@ func (q *ProductQueries) GetProductsInStock(ctx context.Context, db DBTX) (*int3
 	return stock, err
 }
 
-const listProducts = `-- name: ListProducts :many
+const ListProducts = `-- name: ListProducts :many
 SELECT id, name, price, stock, created_at FROM products ORDER BY created_at DESC
 `
 
 func (q *ProductQueries) ListProducts(ctx context.Context, db DBTX) ([]*Product, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "ProductQueries.ListProducts")
 	defer tracer.End()
-	rows, err := db.Query(ctx, listProducts)
+	rows, err := db.Query(ctx, ListProducts)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +157,7 @@ func (q *ProductQueries) ListProducts(ctx context.Context, db DBTX) ([]*Product,
 	return items, nil
 }
 
-const updateProductStock = `-- name: UpdateProductStock :exec
+const UpdateProductStock = `-- name: UpdateProductStock :exec
 UPDATE products SET stock = $2 WHERE id = $1
 `
 
@@ -169,7 +169,7 @@ type UpdateProductStockParams struct {
 func (q *ProductQueries) UpdateProductStock(ctx context.Context, db DBTX, arg UpdateProductStockParams) error {
 	ctx, tracer := tracing.StartTracing(ctx, "ProductQueries.UpdateProductStock")
 	defer tracer.End()
-	_, err := db.Exec(ctx, updateProductStock, arg.ID, arg.Stock)
+	_, err := db.Exec(ctx, UpdateProductStock, arg.ID, arg.Stock)
 	return err
 }
 

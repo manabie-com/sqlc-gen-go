@@ -20,7 +20,7 @@ func NewUsersQueries() *UsersQueries {
 type UsersQueries struct {
 }
 
-const createUser = `-- name: CreateUser :one
+const CreateUser = `-- name: CreateUser :one
 INSERT INTO users (name, email)
 VALUES ($1, $2)
 RETURNING id, name, email, created_at, phone
@@ -34,7 +34,7 @@ type CreateUserParams struct {
 func (q *UsersQueries) CreateUser(ctx context.Context, db DBTX, arg CreateUserParams) (*User, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "UsersQueries.CreateUser")
 	defer tracer.End()
-	row := db.QueryRow(ctx, createUser, arg.Name, arg.Email)
+	row := db.QueryRow(ctx, CreateUser, arg.Name, arg.Email)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -46,7 +46,7 @@ func (q *UsersQueries) CreateUser(ctx context.Context, db DBTX, arg CreateUserPa
 	return &i, err
 }
 
-const deleteUser = `-- name: DeleteUser :exec
+const DeleteUser = `-- name: DeleteUser :exec
 DELETE FROM users WHERE id = $1
 `
 
@@ -57,11 +57,11 @@ type DeleteUserParams struct {
 func (q *UsersQueries) DeleteUser(ctx context.Context, db DBTX, arg DeleteUserParams) error {
 	ctx, tracer := tracing.StartTracing(ctx, "UsersQueries.DeleteUser")
 	defer tracer.End()
-	_, err := db.Exec(ctx, deleteUser, arg.ID)
+	_, err := db.Exec(ctx, DeleteUser, arg.ID)
 	return err
 }
 
-const getUser = `-- name: GetUser :one
+const GetUser = `-- name: GetUser :one
 SELECT id, name, email, created_at, phone FROM users WHERE id = $1 LIMIT 1
 `
 
@@ -72,7 +72,7 @@ type GetUserParams struct {
 func (q *UsersQueries) GetUser(ctx context.Context, db DBTX, arg GetUserParams) (*User, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "UsersQueries.GetUser")
 	defer tracer.End()
-	row := db.QueryRow(ctx, getUser, arg.ID)
+	row := db.QueryRow(ctx, GetUser, arg.ID)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -87,7 +87,7 @@ func (q *UsersQueries) GetUser(ctx context.Context, db DBTX, arg GetUserParams) 
 	return &i, err
 }
 
-const listUsers = `-- name: ListUsers :many
+const ListUsers = `-- name: ListUsers :many
 SELECT id, name, email, created_at, phone FROM users WHERE name = ANY($1::text[]) ORDER BY name
 `
 
@@ -98,7 +98,7 @@ type ListUsersParams struct {
 func (q *UsersQueries) ListUsers(ctx context.Context, db DBTX, arg ListUsersParams) ([]*User, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "UsersQueries.ListUsers")
 	defer tracer.End()
-	rows, err := db.Query(ctx, listUsers, arg.Names)
+	rows, err := db.Query(ctx, ListUsers, arg.Names)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ func (q *UsersQueries) ListUsers(ctx context.Context, db DBTX, arg ListUsersPara
 	return items, nil
 }
 
-const updateUser = `-- name: UpdateUser :one
+const UpdateUser = `-- name: UpdateUser :one
 UPDATE users
 SET name = $1, email = $2
 WHERE id = $3
@@ -139,7 +139,7 @@ type UpdateUserParams struct {
 func (q *UsersQueries) UpdateUser(ctx context.Context, db DBTX, arg UpdateUserParams) (*User, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "UsersQueries.UpdateUser")
 	defer tracer.End()
-	row := db.QueryRow(ctx, updateUser, arg.Name, arg.Email, arg.ID)
+	row := db.QueryRow(ctx, UpdateUser, arg.Name, arg.Email, arg.ID)
 	var i User
 	err := row.Scan(
 		&i.ID,

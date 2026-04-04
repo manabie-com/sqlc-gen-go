@@ -325,6 +325,12 @@ func buildQueries(req *plugin.GenerateRequest, options *opts.Options, structs []
 			}
 		}
 
+		if options.EmitDynamicFilter {
+			if err := applyDynFilter(req, options, &gq, query.Params, sqlpkg); err != nil {
+				return nil, err
+			}
+		}
+
 		qs = append(qs, gq)
 	}
 	sort.Slice(qs, func(i, j int) bool { return qs[i].MethodName < qs[j].MethodName })
@@ -435,6 +441,160 @@ func columnsToStruct(req *plugin.GenerateRequest, options *opts.Options, name st
 	}
 
 	return &gs, nil
+}
+
+// applyDynFilter parses :if annotations in gq.SQL, adjusts the params struct
+// (pointer types for conditional SQL params, bool fields for flag-only params),
+// and sets gq.HasDynFilter / gq.DynFilterArgs.
+func applyDynFilter(_ *plugin.GenerateRequest, options *opts.Options, gq *Query, sqlParams []*plugin.Parameter, sqlpkg opts.SQLDriver) error {
+	info, err := ParseDynFilter(gq.SQL, sqlParams)
+	if err != nil {
+		return fmt.Errorf("query %s: %w", gq.MethodName, err)
+	}
+	if info == nil {
+		return nil
+	}
+
+	gq.HasDynFilter = true
+	gq.SQL = info.AnnotatedSQL
+
+	// Build a set of param numbers that are conditional (need pointer types)
+	conditionalNums := make(map[int]bool)
+	for _, n := range info.ConditionalParamNumbers {
+		conditionalNums[n] = true
+	}
+
+	// If arg is a struct, update the field types for conditional params and
+	// append bool fields for flag-only params.
+	if gq.Arg.Struct != nil {
+		// Make conditional SQL param fields into pointer types
+		for i, f := range gq.Arg.Struct.Fields {
+			if f.Column == nil {
+				continue
+			}
+			// Find the param number for this field
+			for _, p := range sqlParams {
+				if p.Column.Name == f.DBName && conditionalNums[int(p.Number)] {
+					if !strings.HasPrefix(f.Type, "*") {
+						gq.Arg.Struct.Fields[i].Type = "*" + f.Type
+					}
+					break
+				}
+			}
+		}
+		// Append bool fields for flag-only params
+		for _, fp := range info.FlagParams {
+			gq.Arg.Struct.Fields = append(gq.Arg.Struct.Fields, Field{
+				Name:   fp.GoName,
+				DBName: fp.Name,
+				Type:   "bool",
+			})
+		}
+		// Force emission of the struct
+		gq.Arg.Emit = true
+	} else if !gq.Arg.isEmpty() {
+		// Single param (not a struct) that is conditional: make it a pointer
+		if conditionalNums[1] && !strings.HasPrefix(gq.Arg.Typ, "*") {
+			gq.Arg.Typ = "*" + gq.Arg.Typ
+		}
+		// If there are flag params, we need to upgrade to a struct
+		if len(info.FlagParams) > 0 {
+			// Rebuild as a struct with the original param + flag params
+			fields := []Field{
+				{
+					Name:   StructName(gq.Arg.Name, options),
+					DBName: gq.Arg.DBName,
+					Type:   gq.Arg.Typ,
+					Column: gq.Arg.Column,
+				},
+			}
+			for _, fp := range info.FlagParams {
+				fields = append(fields, Field{
+					Name:   fp.GoName,
+					DBName: fp.Name,
+					Type:   "bool",
+				})
+			}
+			gq.Arg = QueryValue{
+				Emit:      true,
+				Name:      "arg",
+				Struct:    &Struct{Name: gq.MethodName + "Params", Fields: fields},
+				SQLDriver: sqlpkg,
+			}
+		}
+	} else if len(info.FlagParams) > 0 {
+		// No SQL params, only flag params
+		var fields []Field
+		for _, fp := range info.FlagParams {
+			fields = append(fields, Field{
+				Name:   fp.GoName,
+				DBName: fp.Name,
+				Type:   "bool",
+			})
+		}
+		gq.Arg = QueryValue{
+			Emit:      true,
+			Name:      "arg",
+			Struct:    &Struct{Name: gq.MethodName + "Params", Fields: fields},
+			SQLDriver: sqlpkg,
+		}
+	}
+
+	// Build DynFilterArgs: the ordered list of field expressions for DynamicSQL.
+	// Ordering must match the :dynif N indices produced by ParseDynFilter.
+	// ParseDynFilter assigns indices in order of first appearance in the SQL.
+	// We need to reconstruct that order here.
+	//
+	// For SQL params: expression is "arg.FieldName" (or just "paramName" if single)
+	// For flag params: expression is "arg.FlagName"
+	gq.DynFilterArgs = buildDynFilterArgs(gq, sqlParams, info)
+
+	return nil
+}
+
+// buildDynFilterArgs builds the args expression for the DynamicSQL call.
+// The order matches info.OrderedArgNames (first-appearance order of :if annotations).
+func buildDynFilterArgs(gq *Query, sqlParams []*plugin.Parameter, info *DynFilterInfo) string {
+	if len(info.OrderedArgNames) == 0 {
+		return ""
+	}
+
+	// Build param-name -> expression mapping
+	paramExpr := make(map[string]string)
+
+	if gq.Arg.Struct != nil {
+		for _, p := range sqlParams {
+			if p.Column.Name == "" {
+				continue
+			}
+			for _, f := range gq.Arg.Struct.Fields {
+				if f.DBName == p.Column.Name {
+					paramExpr[p.Column.Name] = "arg." + f.Name
+					break
+				}
+			}
+		}
+		for _, fp := range info.FlagParams {
+			paramExpr[fp.Name] = "arg." + fp.GoName
+		}
+	} else if !gq.Arg.isEmpty() {
+		if len(sqlParams) == 1 && sqlParams[0].Column.Name != "" {
+			paramExpr[sqlParams[0].Column.Name] = escape(gq.Arg.Name)
+		}
+		for _, fp := range info.FlagParams {
+			paramExpr[fp.Name] = "arg." + fp.GoName
+		}
+	}
+
+	var parts []string
+	for _, name := range info.OrderedArgNames {
+		expr, ok := paramExpr[name]
+		if !ok {
+			expr = "nil"
+		}
+		parts = append(parts, expr)
+	}
+	return strings.Join(parts, ", ")
 }
 
 func checkIncompatibleFieldTypes(fields []Field) error {
