@@ -9,8 +9,8 @@ version: '2'
 plugins:
 - name: golang
   wasm:
-    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v1.7.2/sqlc-gen-go.wasm
-    sha256: d1dc8aaf8976dc5aa8579123f2e447c303fe468b00a32bd0b614e7e291d45c22
+    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v1.7.3/sqlc-gen-go.wasm
+    sha256: fd7a87db9450a6a7efbc3b5fc5c57048093ef372f5d53eff05b02e61329199ef
 sql:
 - schema: schema.sql
   queries: query.sql
@@ -62,8 +62,8 @@ sql:
 plugins:
 - name: golang
   wasm:
-    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v1.7.2/sqlc-gen-go.wasm
-    sha256: d1dc8aaf8976dc5aa8579123f2e447c303fe468b00a32bd0b614e7e291d45c22
+    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v1.7.3/sqlc-gen-go.wasm
+    sha256: fd7a87db9450a6a7efbc3b5fc5c57048093ef372f5d53eff05b02e61329199ef
 sql:
 - engine: postgresql
   codegen:
@@ -144,6 +144,72 @@ options:
 | `import` | Import path of the tracing package |
 | `package` | Package alias (if different from the last path segment) |
 | `code` | Lines to inject; each is a Go template |
+
+---
+
+### `emit_dynamic_filter`
+
+Enables optional WHERE/ORDER BY clauses controlled at runtime via `-- :if @param` annotations in SQL.
+
+When a parameter is marked with `:if`, the generated code:
+- Makes the parameter a pointer (`*T`) in the params struct — `nil` means "skip this clause"
+- Adds a `bool` field for flag-only parameters (e.g. ORDER BY toggles not bound to a SQL `$N`)
+- Calls the generated `DynamicSQL()` helper at runtime to strip inactive lines and renumber placeholders
+
+```yaml
+options:
+  emit_dynamic_filter: true
+```
+
+**SQL annotations**
+
+```sql
+-- name: SearchUsers :many
+SELECT * FROM users
+WHERE name = @name
+  AND email = @email           -- :if @email        -- omit if email is nil
+  AND phone = @phone           -- :if @phone        -- omit if phone is nil
+  AND EXISTS (                 -- :if @has_orders   -- flag-only bool
+    SELECT 1 FROM orders
+    WHERE orders.user_id = users.id
+      AND orders.created_at >= @orders_since  -- :if @orders_since
+  )
+ORDER BY id ASC;
+
+-- name: SearchUsersOrdered :many
+SELECT * FROM users
+WHERE name = @name
+  AND email = @email           -- :if @email
+ORDER BY
+  created_at DESC,             -- :if @order_created_at_desc
+  name ASC,                    -- :if @order_name_asc
+  id ASC;
+```
+
+**Generated Go**
+
+```go
+type SearchUsersParams struct {
+    Name        string
+    Email       *string    // nil → clause skipped
+    Phone       *string    // nil → clause skipped
+    OrdersSince *time.Time // nil → clause skipped
+    HasOrders   bool       // false → EXISTS block skipped
+}
+
+// Runtime: DynamicSQL strips inactive lines before executing
+rows, err := db.Query(ctx, dynQuery, dynArgs...)
+```
+
+**Annotation rules**
+
+| Syntax | Behaviour |
+|---|---|
+| `AND col = $N -- :if @param` | Inline — skip line if param is nil/false |
+| `AND (a = $1 OR b = $2) -- :if @a @b` | Multi-condition — skip if **any** param is inactive |
+| `-- :if @flag` (standalone) | Block — skip the **next** line if flag is false |
+
+A `DynamicSQL` helper is emitted into `dynfilter.go` in the output package. PostgreSQL accepts non-sequential `$N` placeholders so the original numbering is preserved.
 
 ---
 
