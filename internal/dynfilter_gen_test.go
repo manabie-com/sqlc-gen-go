@@ -140,3 +140,128 @@ func TestGenerateDynamicFilter_ValidationError(t *testing.T) {
 	}
 }
 
+// TestGenerateDynamicFilter_FlagOnlyParams verifies that a query with only
+// flag-only params (no WHERE $N predicates) generates a params struct with
+// only bool fields and calls DynamicSQL correctly.
+func TestGenerateDynamicFilter_FlagOnlyParams(t *testing.T) {
+	req := &plugin.GenerateRequest{
+		SqlcVersion: "v1.0.0",
+		Settings:    &plugin.Settings{Engine: "postgresql"},
+		Catalog: &plugin.Catalog{
+			DefaultSchema: "public",
+			Schemas: []*plugin.Schema{{
+				Name: "public",
+				Tables: []*plugin.Table{{
+					Rel:     &plugin.Identifier{Schema: "public", Name: "items"},
+					Columns: []*plugin.Column{{Name: "id", NotNull: true, Type: &plugin.Identifier{Name: "bigint"}}},
+				}},
+			}},
+		},
+		Queries: []*plugin.Query{{
+			Name:     "ListItems",
+			Cmd:      ":many",
+			Filename: "query.sql",
+			Text:     "SELECT id FROM items\nORDER BY\n  id ASC -- :if @sort_asc\n  id DESC -- :if @sort_desc",
+			Params:   []*plugin.Parameter{},
+			Columns:  []*plugin.Column{{Name: "id", NotNull: true, Type: &plugin.Identifier{Name: "bigint"}}},
+		}},
+		PluginOptions: []byte(`{"package":"testpkg","sql_package":"pgx/v5","emit_dynamic_filter":true}`),
+		GlobalOptions: []byte(`{}`),
+	}
+
+	resp, err := Generate(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var queryFile string
+	for _, f := range resp.Files {
+		if f.Name == "query.sql.go" {
+			queryFile = string(f.Contents)
+		}
+	}
+	if queryFile == "" {
+		t.Fatal("query.sql.go not generated")
+	}
+
+	if !strings.Contains(queryFile, "SortAsc") {
+		t.Errorf("expected SortAsc bool field, got:\n%s", queryFile)
+	}
+	if !strings.Contains(queryFile, "SortDesc") {
+		t.Errorf("expected SortDesc bool field, got:\n%s", queryFile)
+	}
+	if !strings.Contains(queryFile, "DynamicSQL(") {
+		t.Errorf("expected DynamicSQL call, got:\n%s", queryFile)
+	}
+	t.Logf("Generated:\n%s", queryFile)
+}
+
+// TestGenerateDynamicFilter_BlockAnnotation verifies that a standalone
+// block-style annotation (-- :if @flag on its own line) causes the next line
+// to be skipped when the flag is false, and the marker appears in the SQL constant.
+func TestGenerateDynamicFilter_BlockAnnotation(t *testing.T) {
+	req := &plugin.GenerateRequest{
+		SqlcVersion: "v1.0.0",
+		Settings:    &plugin.Settings{Engine: "postgresql"},
+		Catalog: &plugin.Catalog{
+			DefaultSchema: "public",
+			Schemas: []*plugin.Schema{{
+				Name: "public",
+				Tables: []*plugin.Table{{
+					Rel: &plugin.Identifier{Schema: "public", Name: "items"},
+					Columns: []*plugin.Column{
+						{Name: "id", NotNull: true, Type: &plugin.Identifier{Name: "bigint"}},
+						{Name: "status", Type: &plugin.Identifier{Name: "text"}},
+					},
+				}},
+			}},
+		},
+		Queries: []*plugin.Query{{
+			Name:     "GetItems",
+			Cmd:      ":many",
+			Filename: "query.sql",
+			Text:     "SELECT id, status FROM items\nWHERE id = $1\n-- :if @filter_status\n  AND status = $2",
+			Params: []*plugin.Parameter{
+				{Number: 1, Column: &plugin.Column{Name: "id", NotNull: true, Type: &plugin.Identifier{Name: "bigint"}}},
+				{Number: 2, Column: &plugin.Column{Name: "status", Type: &plugin.Identifier{Name: "text"}}},
+			},
+			Columns: []*plugin.Column{
+				{Name: "id", NotNull: true, Type: &plugin.Identifier{Name: "bigint"}},
+				{Name: "status", Type: &plugin.Identifier{Name: "text"}},
+			},
+		}},
+		PluginOptions: []byte(`{"package":"testpkg","sql_package":"pgx/v5","emit_dynamic_filter":true}`),
+		GlobalOptions: []byte(`{}`),
+	}
+
+	resp, err := Generate(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var queryFile string
+	for _, f := range resp.Files {
+		if f.Name == "query.sql.go" {
+			queryFile = string(f.Contents)
+		}
+	}
+	if queryFile == "" {
+		t.Fatal("query.sql.go not generated")
+	}
+
+	// The SQL constant should have a standalone :if marker for the block annotation.
+	if !strings.Contains(queryFile, "-- :if $") {
+		t.Errorf("expected :if $N marker in SQL constant, got:\n%s", queryFile)
+	}
+	// filter_status is a flag-only param → bool field, not a pointer.
+	if !strings.Contains(queryFile, "FilterStatus") {
+		t.Errorf("expected FilterStatus bool field, got:\n%s", queryFile)
+	}
+	// status is NOT conditional (the block flag controls skipping, not the param itself),
+	// so it should remain a plain type, not a pointer.
+	if strings.Contains(queryFile, "*pgtype.Text") || strings.Contains(queryFile, "Status *") {
+		t.Errorf("status should NOT be a pointer in block-annotation mode, got:\n%s", queryFile)
+	}
+	t.Logf("Generated:\n%s", queryFile)
+}
+

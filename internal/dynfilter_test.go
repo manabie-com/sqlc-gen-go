@@ -260,3 +260,79 @@ func TestParseDynFilter_BlockAnnotation(t *testing.T) {
 		t.Errorf("expected standalone :if $2 marker in annotated SQL:\n%s", info.AnnotatedSQL)
 	}
 }
+
+func TestParseDynFilter_DollarPrefixAnnotation(t *testing.T) {
+	// The :if annotation accepts $name as well as @name.
+	sql := "SELECT * FROM t\nWHERE a = $1\n  AND b = $2 -- :if $b"
+	params := []*plugin.Parameter{
+		makeParam("a", 1),
+		makeParam("b", 2),
+	}
+	info, err := ParseDynFilter(sql, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info == nil {
+		t.Fatal("expected non-nil DynFilterInfo for $-prefixed annotation")
+	}
+	if len(info.ConditionalParamNumbers) != 1 || info.ConditionalParamNumbers[0] != 2 {
+		t.Errorf("expected conditional param $2, got %v", info.ConditionalParamNumbers)
+	}
+}
+
+func TestParseDynFilter_DuplicateParamInMultipleAnnotations(t *testing.T) {
+	// The same param referenced in two different :if annotations should be deduped.
+	sql := "SELECT * FROM t\nWHERE a = $1\n  AND b = $2 -- :if @b\n  AND c = $3 -- :if @b @c"
+	params := []*plugin.Parameter{
+		makeParam("a", 1),
+		makeParam("b", 2),
+		makeParam("c", 3),
+	}
+	info, err := ParseDynFilter(sql, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info == nil {
+		t.Fatal("expected non-nil DynFilterInfo")
+	}
+	// Both b and c are conditional, deduped.
+	if len(info.ConditionalParamNumbers) != 2 {
+		t.Errorf("expected 2 conditional params (b, c), got %v", info.ConditionalParamNumbers)
+	}
+	// OrderedArgNames should not have duplicates: a, b, c
+	seen := map[string]int{}
+	for _, name := range info.OrderedArgNames {
+		seen[name]++
+	}
+	for name, count := range seen {
+		if count > 1 {
+			t.Errorf("duplicate param %q in OrderedArgNames: %v", name, info.OrderedArgNames)
+		}
+	}
+}
+
+func TestParseDynFilter_EmptySQL(t *testing.T) {
+	info, err := ParseDynFilter("", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info != nil {
+		t.Error("expected nil for empty SQL")
+	}
+}
+
+func TestParseDynFilter_OnlyRequiredParams(t *testing.T) {
+	// SQL has params but no :if annotations → nil result.
+	sql := "SELECT * FROM t WHERE a = $1 AND b = $2"
+	params := []*plugin.Parameter{
+		makeParam("a", 1),
+		makeParam("b", 2),
+	}
+	info, err := ParseDynFilter(sql, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info != nil {
+		t.Error("expected nil when no :if annotations are present")
+	}
+}
