@@ -9,8 +9,8 @@ version: '2'
 plugins:
 - name: golang
   wasm:
-    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v1.7.3/sqlc-gen-go.wasm
-    sha256: fd7a87db9450a6a7efbc3b5fc5c57048093ef372f5d53eff05b02e61329199ef
+    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v1.7.4/sqlc-gen-go.wasm
+    sha256: 2ab2608c832c0cded17f0e679ae8209c7bb6ba9fd1c53f7e46a882d2a1986307
 sql:
 - schema: schema.sql
   queries: query.sql
@@ -62,8 +62,8 @@ sql:
 plugins:
 - name: golang
   wasm:
-    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v1.7.3/sqlc-gen-go.wasm
-    sha256: fd7a87db9450a6a7efbc3b5fc5c57048093ef372f5d53eff05b02e61329199ef
+    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v1.7.4/sqlc-gen-go.wasm
+    sha256: 2ab2608c832c0cded17f0e679ae8209c7bb6ba9fd1c53f7e46a882d2a1986307
 sql:
 - engine: postgresql
   codegen:
@@ -220,7 +220,7 @@ func (q *SearchQueries) SearchUsers(ctx context.Context, db DBTX, arg SearchUser
 | `AND (a = @a AND b = @b) -- :if @a @b` | Multi-condition — skip if **any** param is inactive |
 | `-- :if @flag` (standalone) | Block — skip the **next** line if flag is false |
 
-A `DynamicSQL` helper is emitted into `dynfilter.go` in the output package. PostgreSQL accepts non-sequential `$N` placeholders so the original numbering is preserved.
+A `DynamicSQL` helper is emitted into `dynfilter.go` in the output package. After filtering, remaining `$N` placeholders are renumbered sequentially and the args slice is trimmed to match, preventing "expected N arguments, got M" errors.
 
 ---
 
