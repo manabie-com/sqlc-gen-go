@@ -49,10 +49,16 @@ type {{.Ret.Type}} struct { {{- range .Ret.Struct.Fields}}
 {{end -}}
 {{- if $.EmitMethodsWithDBArgument -}}
 func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, db DBTX, {{.Arg.Pair}}) ({{.Ret.DefineType}}, error) {
-{{tracingCode .MethodName}}	row := db.QueryRow(ctx, {{.ConstantName}}, {{.Arg.Params}})
+{{tracingCode .MethodName}}{{- if .HasDynFilter}}	dynQuery, dynArgs := DynamicSQL({{.ConstantName}}, []any{ {{.DynFilterArgs}} })
+	row := db.QueryRow(ctx, dynQuery, dynArgs...)
+{{- else}}	row := db.QueryRow(ctx, {{.ConstantName}}, {{.Arg.Params}})
+{{- end}}
 {{- else -}}
 func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{.Arg.Pair}}) ({{.Ret.DefineType}}, error) {
-{{tracingCode .MethodName}}	row := q.db.QueryRow(ctx, {{.ConstantName}}, {{.Arg.Params}})
+{{tracingCode .MethodName}}{{- if .HasDynFilter}}	dynQuery, dynArgs := DynamicSQL({{.ConstantName}}, []any{ {{.DynFilterArgs}} })
+	row := q.db.QueryRow(ctx, dynQuery, dynArgs...)
+{{- else}}	row := q.db.QueryRow(ctx, {{.ConstantName}}, {{.Arg.Params}})
+{{- end}}
 {{- end}}
 	{{- if or (ne .Arg.Pair .Ret.Pair) (ne .Arg.DefineType .Ret.DefineType) }}
 	var {{.Ret.Name}} {{.Ret.Type}}
@@ -76,10 +82,16 @@ func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{.Arg.Pair}}) (
 {{end -}}
 {{- if $.EmitMethodsWithDBArgument -}}
 func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, db DBTX, {{.Arg.Pair}}) ([]{{.Ret.DefineType}}, error) {
-{{tracingCode .MethodName}}	rows, err := db.Query(ctx, {{.ConstantName}}, {{.Arg.Params}})
+{{tracingCode .MethodName}}{{- if .HasDynFilter}}	dynQuery, dynArgs := DynamicSQL({{.ConstantName}}, []any{ {{.DynFilterArgs}} })
+	rows, err := db.Query(ctx, dynQuery, dynArgs...)
+{{- else}}	rows, err := db.Query(ctx, {{.ConstantName}}, {{.Arg.Params}})
+{{- end}}
 {{- else -}}
 func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{.Arg.Pair}}) ([]{{.Ret.DefineType}}, error) {
-{{tracingCode .MethodName}}	rows, err := q.db.Query(ctx, {{.ConstantName}}, {{.Arg.Params}})
+{{tracingCode .MethodName}}{{- if .HasDynFilter}}	dynQuery, dynArgs := DynamicSQL({{.ConstantName}}, []any{ {{.DynFilterArgs}} })
+	rows, err := q.db.Query(ctx, dynQuery, dynArgs...)
+{{- else}}	rows, err := q.db.Query(ctx, {{.ConstantName}}, {{.Arg.Params}})
+{{- end}}
 {{- end}}
 	if err != nil {
 		return nil, err
@@ -109,10 +121,16 @@ func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{.Arg.Pair}}) (
 {{end -}}
 {{- if $.EmitMethodsWithDBArgument -}}
 func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, db DBTX, {{.Arg.Pair}}) error {
-{{tracingCode .MethodName}}	_, err := db.Exec(ctx, {{.ConstantName}}, {{.Arg.Params}})
+{{tracingCode .MethodName}}{{- if .HasDynFilter}}	dynQuery, dynArgs := DynamicSQL({{.ConstantName}}, []any{ {{.DynFilterArgs}} })
+	_, err := db.Exec(ctx, dynQuery, dynArgs...)
+{{- else}}	_, err := db.Exec(ctx, {{.ConstantName}}, {{.Arg.Params}})
+{{- end}}
 {{- else -}}
 func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{.Arg.Pair}}) error {
-{{tracingCode .MethodName}}	_, err := q.db.Exec(ctx, {{.ConstantName}}, {{.Arg.Params}})
+{{tracingCode .MethodName}}{{- if .HasDynFilter}}	dynQuery, dynArgs := DynamicSQL({{.ConstantName}}, []any{ {{.DynFilterArgs}} })
+	_, err := q.db.Exec(ctx, dynQuery, dynArgs...)
+{{- else}}	_, err := q.db.Exec(ctx, {{.ConstantName}}, {{.Arg.Params}})
+{{- end}}
 {{- end}}
 	return err
 }
@@ -123,10 +141,16 @@ func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{.Arg.Pair}}) e
 {{end -}}
 {{if $.EmitMethodsWithDBArgument -}}
 func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, db DBTX, {{.Arg.Pair}}) (int64, error) {
-{{tracingCode .MethodName}}	result, err := db.Exec(ctx, {{.ConstantName}}, {{.Arg.Params}})
+{{tracingCode .MethodName}}{{- if .HasDynFilter}}	dynQuery, dynArgs := DynamicSQL({{.ConstantName}}, []any{ {{.DynFilterArgs}} })
+	result, err := db.Exec(ctx, dynQuery, dynArgs...)
+{{- else}}	result, err := db.Exec(ctx, {{.ConstantName}}, {{.Arg.Params}})
+{{- end}}
 {{- else -}}
 func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{.Arg.Pair}}) (int64, error) {
-{{tracingCode .MethodName}}	result, err := q.db.Exec(ctx, {{.ConstantName}}, {{.Arg.Params}})
+{{tracingCode .MethodName}}{{- if .HasDynFilter}}	dynQuery, dynArgs := DynamicSQL({{.ConstantName}}, []any{ {{.DynFilterArgs}} })
+	result, err := q.db.Exec(ctx, dynQuery, dynArgs...)
+{{- else}}	result, err := q.db.Exec(ctx, {{.ConstantName}}, {{.Arg.Params}})
+{{- end}}
 {{- end}}
 	if err != nil {
 		return 0, err
@@ -140,10 +164,16 @@ func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{.Arg.Pair}}) (
 {{end -}}
 {{- if $.EmitMethodsWithDBArgument -}}
 func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, db DBTX, {{.Arg.Pair}}) (pgconn.CommandTag, error) {
-{{tracingCode .MethodName}}	return db.Exec(ctx, {{.ConstantName}}, {{.Arg.Params}})
+{{tracingCode .MethodName}}{{- if .HasDynFilter}}	dynQuery, dynArgs := DynamicSQL({{.ConstantName}}, []any{ {{.DynFilterArgs}} })
+	return db.Exec(ctx, dynQuery, dynArgs...)
+{{- else}}	return db.Exec(ctx, {{.ConstantName}}, {{.Arg.Params}})
+{{- end}}
 {{- else -}}
 func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{.Arg.Pair}}) (pgconn.CommandTag, error) {
-{{tracingCode .MethodName}}	return q.db.Exec(ctx, {{.ConstantName}}, {{.Arg.Params}})
+{{tracingCode .MethodName}}{{- if .HasDynFilter}}	dynQuery, dynArgs := DynamicSQL({{.ConstantName}}, []any{ {{.DynFilterArgs}} })
+	return q.db.Exec(ctx, dynQuery, dynArgs...)
+{{- else}}	return q.db.Exec(ctx, {{.ConstantName}}, {{.Arg.Params}})
+{{- end}}
 {{- end}}
 }
 {{end}}

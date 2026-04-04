@@ -6,7 +6,9 @@ build:
 test: bin/sqlc-gen-go.wasm
 	go test ./...
 
-all: bin/sqlc-gen-go bin/sqlc-gen-go.wasm
+all:
+	make bin/sqlc-gen-go
+	make bin/sqlc-gen-go.wasm
 
 bin/sqlc-gen-go: bin go.mod go.sum $(wildcard **/*.go)
 	cd plugin && go build -o ../bin/sqlc-gen-go ./main.go

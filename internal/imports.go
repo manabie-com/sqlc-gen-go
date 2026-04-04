@@ -113,6 +113,9 @@ func (i *importer) Imports(filename string) [][]ImportSpec {
 		return mergeImports(i.copyfromImports())
 	case batchFileName:
 		return mergeImports(i.batchImports())
+	case "dynfilter.go":
+		// dynfilterFile template manages its own imports inline
+		return [][]ImportSpec{{}, {}}
 	default:
 		return mergeImports(i.queryImports(filename))
 	}

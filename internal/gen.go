@@ -48,6 +48,7 @@ type tmplCtx struct {
 	InterfaceName             string // "Querier" or e.g. "UsersQuerier"
 	EmitTracing               *opts.TracingOptions
 	GoGenerateMock            string
+	EmitDynamicFilter         bool
 }
 
 func (t *tmplCtx) OutputQuery(sourceName string) bool {
@@ -254,6 +255,7 @@ func generate(req *plugin.GenerateRequest, options *opts.Options, enums []Enum, 
 		InterfaceName:             "Querier",
 		EmitTracing:               options.EmitTracing,
 		GoGenerateMock:            options.GoGenerateMock,
+		EmitDynamicFilter:         options.EmitDynamicFilter,
 	}
 
 	if tctx.UsesCopyFrom && !tctx.SQLDriver.IsPGX() && options.SqlDriver != opts.SQLDriverGoSQLDriverMySQL {
@@ -381,6 +383,12 @@ func generate(req *plugin.GenerateRequest, options *opts.Options, enums []Enum, 
 			return nil, err
 		}
 	}
+	if options.EmitDynamicFilter && usesDynFilter(queries) {
+		dynfilterFileName := "dynfilter.go"
+		if err := execute(dynfilterFileName, "dynfilterFile"); err != nil {
+			return nil, err
+		}
+	}
 
 	files := map[string]struct{}{}
 	for _, gq := range queries {
@@ -407,6 +415,15 @@ func generate(req *plugin.GenerateRequest, options *opts.Options, enums []Enum, 
 func usesCopyFrom(queries []Query) bool {
 	for _, q := range queries {
 		if q.Cmd == metadata.CmdCopyFrom {
+			return true
+		}
+	}
+	return false
+}
+
+func usesDynFilter(queries []Query) bool {
+	for _, q := range queries {
+		if q.HasDynFilter {
 			return true
 		}
 	}

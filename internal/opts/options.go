@@ -48,6 +48,7 @@ type Options struct {
 	EmitErrNilIfNoRows          bool              `json:"emit_err_nil_if_no_rows,omitempty" yaml:"emit_err_nil_if_no_rows"`
 	EmitTracing                 *TracingOptions   `json:"emit_tracing,omitempty" yaml:"emit_tracing"`
 	GoGenerateMock              string            `json:"go_generate_mock,omitempty" yaml:"go_generate_mock"`
+	EmitDynamicFilter           bool              `json:"emit_dynamic_filter,omitempty" yaml:"emit_dynamic_filter"`
 
 	InitialismsMap map[string]struct{} `json:"-" yaml:"-"`
 }
@@ -159,6 +160,9 @@ func ValidateOpts(opts *Options) error {
 	}
 	if opts.EmitPerFileQueries && opts.EmitPreparedQueries {
 		return fmt.Errorf("invalid options: emit_per_file_queries and emit_prepared_queries options are mutually exclusive")
+	}
+	if opts.EmitDynamicFilter && opts.EmitPreparedQueries {
+		return fmt.Errorf("invalid options: emit_dynamic_filter and emit_prepared_queries options are mutually exclusive")
 	}
 	if *opts.QueryParameterLimit < 0 {
 		return fmt.Errorf("invalid options: query parameter limit must not be negative")
