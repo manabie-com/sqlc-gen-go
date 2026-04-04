@@ -55,3 +55,33 @@ func (mr *MockSearchQuerierMockRecorder) SearchUsers(ctx, arg1, arg any) *gomock
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchUsers", reflect.TypeOf((*MockSearchQuerier)(nil).SearchUsers), ctx, arg1, arg)
 }
+
+// SearchUsersByContact mocks base method.
+func (m *MockSearchQuerier) SearchUsersByContact(ctx context.Context, arg1 db.DBTX, arg db.SearchUsersByContactParams) ([]*db.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SearchUsersByContact", ctx, arg1, arg)
+	ret0, _ := ret[0].([]*db.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SearchUsersByContact indicates an expected call of SearchUsersByContact.
+func (mr *MockSearchQuerierMockRecorder) SearchUsersByContact(ctx, arg1, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchUsersByContact", reflect.TypeOf((*MockSearchQuerier)(nil).SearchUsersByContact), ctx, arg1, arg)
+}
+
+// SearchUsersOrdered mocks base method.
+func (m *MockSearchQuerier) SearchUsersOrdered(ctx context.Context, arg1 db.DBTX, arg db.SearchUsersOrderedParams) ([]*db.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SearchUsersOrdered", ctx, arg1, arg)
+	ret0, _ := ret[0].([]*db.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SearchUsersOrdered indicates an expected call of SearchUsersOrdered.
+func (mr *MockSearchQuerierMockRecorder) SearchUsersOrdered(ctx, arg1, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchUsersOrdered", reflect.TypeOf((*MockSearchQuerier)(nil).SearchUsersOrdered), ctx, arg1, arg)
+}

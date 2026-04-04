@@ -32,15 +32,35 @@ func DynamicSQL(query string, args []any) (string, []any) {
 			continue
 		}
 
-		// Inline annotation: "... -- :if $N"
+		// Inline annotation(s): "content -- :if $N [-- :if $M ...]"
+		// The line is dropped if any condition is inactive; all annotations are
+		// stripped when the line is kept.
 		if idx := strings.Index(line, " -- :if $"); idx != -1 {
-			rest := strings.TrimSpace(line[idx+len(" -- :if $"):])
-			if n, err := strconv.Atoi(rest); err == nil {
-				if n-1 < len(args) && !dynArgActive(args[n-1]) {
-					continue
+			skip := false
+			tail := line[idx:]
+			for len(tail) > 0 {
+				i := strings.Index(tail, " -- :if $")
+				if i == -1 {
+					break
 				}
-				line = strings.TrimRight(line[:idx], " \t")
+				rest := tail[i+len(" -- :if $"):]
+				end := strings.IndexAny(rest, " \t")
+				numStr := rest
+				if end != -1 {
+					numStr = rest[:end]
+				}
+				if n, err := strconv.Atoi(numStr); err == nil {
+					if n-1 < len(args) && !dynArgActive(args[n-1]) {
+						skip = true
+						break
+					}
+				}
+				tail = tail[i+1:]
 			}
+			if skip {
+				continue
+			}
+			line = strings.TrimRight(line[:idx], " \t")
 		}
 
 		kept = append(kept, line)

@@ -9,8 +9,21 @@ import (
 	"github.com/sqlc-dev/plugin-sdk-go/plugin"
 )
 
-// ifAnnotationRe matches "-- :if @paramName" or "-- :if $paramName"
-var ifAnnotationRe = regexp.MustCompile(`--\s*:if\s+[@$](\w+)\s*$`)
+// ifAnnotationRe matches "-- :if @p1 [@p2 ...]" or "-- :if $p1 [$p2 ...]" at end of line.
+var ifAnnotationRe = regexp.MustCompile(`--\s*:if\s+[@$]\w+(?:\s+[@$]\w+)*\s*$`)
+
+// ifParamRe extracts individual @name or $name tokens from an annotation.
+var ifParamRe = regexp.MustCompile(`[@$](\w+)`)
+
+// parseIfNames returns all param names listed in a :if annotation string.
+func parseIfNames(annotation string) []string {
+	matches := ifParamRe.FindAllStringSubmatch(annotation, -1)
+	names := make([]string, 0, len(matches))
+	for _, m := range matches {
+		names = append(names, m[1])
+	}
+	return names
+}
 
 // DynFilterInfo holds the result of parsing :if annotations from a SQL query.
 type DynFilterInfo struct {
@@ -40,7 +53,7 @@ type FlagParam struct {
 	GoName string
 }
 
-// ParseDynFilter parses -- :if @param annotations from SQL query text.
+// ParseDynFilter parses -- :if @param [... @paramN] annotations from SQL query text.
 // params is the list of ALL SQL parameters (from sqlc).
 //
 // The :dynif N index assigned to each annotation equals paramNumber-1 for
@@ -50,8 +63,9 @@ type FlagParam struct {
 //
 // Both inline and block syntax are supported:
 //
-//	AND b = $2 -- :if @b          (inline)
-//	-- :if @b                      (block: applies to next line)
+//	AND b = $2 -- :if @b              (inline, single)
+//	AND b = $2 -- :if @b @c           (inline, multi — line removed if any is inactive)
+//	-- :if @b                          (block: applies to next line)
 //	AND b = $2
 func ParseDynFilter(sql string, params []*plugin.Parameter) (*DynFilterInfo, error) {
 	// Build map: column name -> param number (1-based)
@@ -75,19 +89,20 @@ func ParseDynFilter(sql string, params []*plugin.Parameter) (*DynFilterInfo, err
 	var refs []refEntry
 
 	for _, line := range lines {
-		m := ifAnnotationRe.FindStringSubmatch(line)
-		if m == nil {
+		loc := ifAnnotationRe.FindStringIndex(line)
+		if loc == nil {
 			continue
 		}
-		name := m[1]
-		if seenName[name] {
-			continue
-		}
-		seenName[name] = true
-		if paramNum, ok := paramByName[name]; ok {
-			refs = append(refs, refEntry{name: name, isFlagOnly: false, paramNumber: paramNum})
-		} else {
-			refs = append(refs, refEntry{name: name, isFlagOnly: true})
+		for _, name := range parseIfNames(line[loc[0]:]) {
+			if seenName[name] {
+				continue
+			}
+			seenName[name] = true
+			if paramNum, ok := paramByName[name]; ok {
+				refs = append(refs, refEntry{name: name, isFlagOnly: false, paramNumber: paramNum})
+			} else {
+				refs = append(refs, refEntry{name: name, isFlagOnly: true})
+			}
 		}
 	}
 
@@ -116,29 +131,75 @@ func ParseDynFilter(sql string, params []*plugin.Parameter) (*DynFilterInfo, err
 		}
 	}
 
-	// Second pass: rewrite the SQL, replacing -- :if @name with -- :dynif N.
+	// buildSuffix converts a list of param names into " -- :if $N [-- :if $M ...]".
+	buildSuffix := func(names []string) (string, error) {
+		var parts []string
+		for _, name := range names {
+			idx, ok := argIndexByName[name]
+			if !ok {
+				return "", fmt.Errorf("dynfilter: unknown param @%s", name)
+			}
+			parts = append(parts, fmt.Sprintf("-- :if $%d", idx+1))
+		}
+		return " " + strings.Join(parts, " "), nil
+	}
+
+	// Second pass: rewrite the SQL, replacing -- :if @name... with -- :if $N...
 	var newLines []string
+	// blockSuffix is the annotation suffix to propagate to lines inside a
+	// multi-line paren block opened by an inline annotation; "" means inactive.
+	blockSuffix := ""
+	blockDepth := 0
+
 	for _, line := range lines {
-		m := ifAnnotationRe.FindStringSubmatch(line)
-		if m == nil {
+		// Propagate annotation to lines inside an open paren block.
+		if blockSuffix != "" {
+			blockDepth += strings.Count(line, "(") - strings.Count(line, ")")
+			// If this line has its own inline annotation, convert it first so the
+			// generated line carries both conditions.
+			if loc := ifAnnotationRe.FindStringIndex(line); loc != nil {
+				innerSuffix, err := buildSuffix(parseIfNames(line[loc[0]:]))
+				if err != nil {
+					return nil, err
+				}
+				line = strings.TrimRight(line[:loc[0]], " \t") + innerSuffix
+			}
+			newLines = append(newLines, strings.TrimRight(line, " \t")+blockSuffix)
+			if blockDepth <= 0 {
+				blockSuffix = ""
+				blockDepth = 0
+			}
+			continue
+		}
+
+		loc := ifAnnotationRe.FindStringIndex(line)
+		if loc == nil {
 			newLines = append(newLines, line)
 			continue
 		}
-		name := m[1]
-		idx, ok := argIndexByName[name]
-		if !ok {
-			return nil, fmt.Errorf("dynfilter: unknown param @%s", name)
+
+		names := parseIfNames(line[loc[0]:])
+		suffix, err := buildSuffix(names)
+		if err != nil {
+			return nil, err
 		}
 
-		annotationStart := ifAnnotationRe.FindStringIndex(line)
-		prefix := strings.TrimSpace(line[:annotationStart[0]])
+		prefix := strings.TrimSpace(line[:loc[0]])
 		if prefix == "" {
-			// Standalone block annotation
-			newLines = append(newLines, fmt.Sprintf("-- :if $%d", idx+1))
+			// Standalone block annotation: emit as first condition only
+			// (DynamicSQL skipNext handles one line; multi-param block-style
+			// is better expressed inline on each line).
+			newLines = append(newLines, strings.TrimSpace(suffix))
 		} else {
 			// Inline annotation
-			newLine := strings.TrimRight(line[:annotationStart[0]], " \t") + fmt.Sprintf(" -- :if $%d", idx+1)
-			newLines = append(newLines, newLine)
+			content := strings.TrimRight(line[:loc[0]], " \t")
+			newLines = append(newLines, content+suffix)
+			// If the content opens a paren block, propagate to subsequent lines.
+			depth := strings.Count(content, "(") - strings.Count(content, ")")
+			if depth > 0 {
+				blockSuffix = suffix
+				blockDepth = depth
+			}
 		}
 	}
 
@@ -153,7 +214,6 @@ func ParseDynFilter(sql string, params []*plugin.Parameter) (*DynFilterInfo, err
 
 	// Build OrderedArgNames: all SQL params in $N order (position 0..N-1),
 	// then flag params in appearance order.
-	// Collect param names sorted by number.
 	type sqlParam struct {
 		name   string
 		number int32

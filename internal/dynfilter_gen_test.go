@@ -109,10 +109,10 @@ func TestGenerateDynamicFilter(t *testing.T) {
 		t.Error("expected DynamicSQL function in dynfilter.go")
 	}
 
-	// Verify the SQL constant has :dynif markers
-	if !strings.Contains(queryFile, ":dynif") {
+	// Verify the SQL constant has -- :if $N markers
+	if !strings.Contains(queryFile, "-- :if $") {
 		t.Logf("query file:\n%s", queryFile)
-		t.Error("expected :dynif markers in SQL constant")
+		t.Error("expected '-- :if $N' markers in SQL constant")
 	}
 
 	t.Logf("Generated query.sql.go:\n%s", queryFile)

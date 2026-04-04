@@ -164,6 +164,76 @@ func TestParseDynFilter_MixedParams(t *testing.T) {
 	}
 }
 
+func TestParseDynFilter_InlineBlockPropagation(t *testing.T) {
+	// Inline annotation on a line that opens a multi-line paren block.
+	// All lines in the block should be annotated with the same :if $N.
+	sql := "SELECT * FROM t\nWHERE a = $1\n  AND EXISTS ( -- :if @has_orders\n    SELECT 1 FROM orders\n    WHERE orders.user_id = t.id\n  )"
+	params := []*plugin.Parameter{
+		makeParam("a", 1),
+		makeParam("has_orders", 2),
+	}
+	info, err := ParseDynFilter(sql, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info == nil {
+		t.Fatal("expected non-nil DynFilterInfo")
+	}
+
+	lines := strings.Split(info.AnnotatedSQL, "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		// Every line that is part of the EXISTS block should carry the annotation.
+		isBlockLine := strings.Contains(trimmed, "EXISTS") ||
+			strings.Contains(trimmed, "SELECT 1") ||
+			strings.Contains(trimmed, "orders.user_id") ||
+			trimmed == ")"
+		if isBlockLine && !strings.Contains(line, "-- :if $2") {
+			t.Errorf("expected '-- :if $2' on block line %q, got:\n%s", line, info.AnnotatedSQL)
+		}
+	}
+	t.Logf("AnnotatedSQL:\n%s", info.AnnotatedSQL)
+}
+
+func TestParseDynFilter_MultiParamAnnotation(t *testing.T) {
+	// Line is included only when BOTH email AND phone are active.
+	sql := "SELECT * FROM t\nWHERE a = $1\n  AND (email = $2 OR phone = $3) -- :if @email @phone"
+	params := []*plugin.Parameter{
+		makeParam("a", 1),
+		makeParam("email", 2),
+		makeParam("phone", 3),
+	}
+	info, err := ParseDynFilter(sql, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info == nil {
+		t.Fatal("expected non-nil DynFilterInfo")
+	}
+
+	// Both email=$2 and phone=$3 should appear as conditions on the annotated line.
+	var combinedLine string
+	for _, line := range strings.Split(info.AnnotatedSQL, "\n") {
+		if strings.Contains(line, "email = $2 OR phone") {
+			combinedLine = line
+		}
+	}
+	if combinedLine == "" {
+		t.Fatalf("could not find combined condition line in:\n%s", info.AnnotatedSQL)
+	}
+	if !strings.Contains(combinedLine, "-- :if $2") {
+		t.Errorf("expected '-- :if $2' on combined line, got: %q", combinedLine)
+	}
+	if !strings.Contains(combinedLine, "-- :if $3") {
+		t.Errorf("expected '-- :if $3' on combined line, got: %q", combinedLine)
+	}
+	// Both should be conditional param numbers.
+	if len(info.ConditionalParamNumbers) != 2 {
+		t.Errorf("expected 2 conditional params, got %v", info.ConditionalParamNumbers)
+	}
+	t.Logf("AnnotatedSQL:\n%s", info.AnnotatedSQL)
+}
+
 func TestParseDynFilter_BlockAnnotation(t *testing.T) {
 	sql := "SELECT * FROM t\nWHERE a = $1\n-- :if @b\n  AND b = $2"
 	params := []*plugin.Parameter{
