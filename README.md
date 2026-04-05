@@ -181,18 +181,10 @@ ORDER BY id ASC;
 SELECT * FROM users
 WHERE
   1 = 1
-  AND email = @email           -- :if @email
+  AND email = @email -- :if @email
 ORDER BY
-  created_at DESC,             -- :if @order_created_at_desc
-  name ASC,                    -- :if @order_name_asc
-  id ASC;
-```
-
-**Note:**
-For complex cases with ORDER BY, we recommend using CASE statements because they do not affect query performance like WHERE clauses:
-```sql
-  CASE WHEN @id_asc::bool THEN id END ASC,  -- :if @id_asc
-  CASE WHEN @id_desc::bool THEN id END DESC -- :if @id_desc
+  id ASC,  -- :if @id_asc
+  id DESC  -- :if @id_desc
 ```
 
 **Generated Go**

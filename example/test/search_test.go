@@ -172,44 +172,43 @@ func TestSearchUsersByContact(t *testing.T) {
 
 func TestSearchUsersOrderedByID(t *testing.T) {
 	t.Run("IDAsc", func(t *testing.T) {
-		sql, a := db.DynamicSQL(db.SearchUsersOrderedByID, []any{"alice", nil, boolPtr(true), nil})
-		assertContains(t, sql, "ASC")
-		assertAbsent(t, sql, "DESC")
-		assertAbsent(t, sql, "ASC,") // trailing comma must be stripped
-		// $1=name, $2=IDAsc (bool pointer kept as SQL param)
-		if len(a) != 2 {
-			t.Errorf("args len: got %d, want 2", len(a))
+		// IdAsc/IdDesc are annotation-only bool flags — not SQL placeholders
+		sql, a := db.DynamicSQL(db.SearchUsersOrderedByID, []any{"alice", nil, true, false})
+		assertContains(t, sql, "id ASC")
+		assertAbsent(t, sql, "id DESC")
+		assertAbsent(t, sql, "ASC,") // trailing comma stripped
+		// only $1 (name) in args; bool flags are annotation-only
+		if len(a) != 1 {
+			t.Errorf("args len: got %d, want 1", len(a))
 		}
 	})
 
 	t.Run("IDDesc", func(t *testing.T) {
-		sql, a := db.DynamicSQL(db.SearchUsersOrderedByID, []any{"alice", nil, nil, boolPtr(true)})
-		assertAbsent(t, sql, "ASC")
-		assertContains(t, sql, "DESC")
-		// $1=name, $2=IDDesc (renumbered from $4)
-		if len(a) != 2 {
-			t.Errorf("args len: got %d, want 2", len(a))
+		sql, a := db.DynamicSQL(db.SearchUsersOrderedByID, []any{"alice", nil, false, true})
+		assertAbsent(t, sql, "id ASC")
+		assertContains(t, sql, "id DESC")
+		if len(a) != 1 {
+			t.Errorf("args len: got %d, want 1", len(a))
 		}
 	})
 
 	t.Run("BothFlags", func(t *testing.T) {
-		sql, a := db.DynamicSQL(db.SearchUsersOrderedByID, []any{"alice", nil, boolPtr(true), boolPtr(true)})
-		assertContains(t, sql, "ASC")
-		assertContains(t, sql, "DESC")
-		// $1=name, $2=IDAsc, $3=IDDesc
-		if len(a) != 3 {
-			t.Errorf("args len: got %d, want 3", len(a))
+		sql, a := db.DynamicSQL(db.SearchUsersOrderedByID, []any{"alice", nil, true, true})
+		assertContains(t, sql, "id ASC,")
+		assertContains(t, sql, "id DESC")
+		if len(a) != 1 {
+			t.Errorf("args len: got %d, want 1", len(a))
 		}
 	})
 
 	t.Run("WithEmail", func(t *testing.T) {
-		sql, a := db.DynamicSQL(db.SearchUsersOrderedByID, []any{"alice", strPtr("alice@example.com"), boolPtr(true), boolPtr(true)})
+		sql, a := db.DynamicSQL(db.SearchUsersOrderedByID, []any{"alice", strPtr("alice@example.com"), true, true})
 		assertContains(t, sql, "AND email")
-		assertContains(t, sql, "ASC")
-		assertContains(t, sql, "DESC")
-		// $1=name, $2=email, $3=IDAsc, $4=IDDesc
-		if len(a) != 4 {
-			t.Errorf("args len: got %d, want 4", len(a))
+		assertContains(t, sql, "id ASC,")
+		assertContains(t, sql, "id DESC")
+		// $1=name, $2=email; bool flags are annotation-only
+		if len(a) != 2 {
+			t.Errorf("args len: got %d, want 2", len(a))
 		}
 	})
 }

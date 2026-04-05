@@ -245,14 +245,14 @@ func TestSearchUsersOrderedByID(t *testing.T) {
 	a1 := setup.InsertUser(t, conn, "alice", "alice.x@example.com", nil)
 	a2 := setup.InsertUser(t, conn, "alice", "alice.y@example.com", nil)
 
-	// Note: NoOrderFlags is not tested here — removing all flags leaves an empty
-	// "ORDER BY" clause (syntax error) because the query has no fallback line.
-	// That case is covered by unit tests in example/test.
+	// Note: NoOrderFlags (IdAsc=false, IdDesc=false) is not tested here — both
+	// lines removed leaves an empty "ORDER BY" clause (syntax error) because the
+	// query has no fallback line. That case is covered by unit tests in example/test.
 
 	t.Run("IDAsc", func(t *testing.T) {
 		users, err := q.SearchUsersOrderedByID(ctx, conn, db.SearchUsersOrderedByIDParams{
 			Name:  "alice",
-			IDAsc: setup.BoolPtr(true),
+			IdAsc: true,
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -268,7 +268,7 @@ func TestSearchUsersOrderedByID(t *testing.T) {
 	t.Run("IDDesc", func(t *testing.T) {
 		users, err := q.SearchUsersOrderedByID(ctx, conn, db.SearchUsersOrderedByIDParams{
 			Name:   "alice",
-			IDDesc: setup.BoolPtr(true),
+			IdDesc: true,
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -282,11 +282,10 @@ func TestSearchUsersOrderedByID(t *testing.T) {
 	})
 
 	t.Run("IDAscAndIDDesc", func(t *testing.T) {
-		// Both flags active: ASC line has its trailing comma followed by the DESC line — valid SQL.
 		users, err := q.SearchUsersOrderedByID(ctx, conn, db.SearchUsersOrderedByIDParams{
 			Name:   "alice",
-			IDAsc:  setup.BoolPtr(true),
-			IDDesc: setup.BoolPtr(true),
+			IdAsc:  true,
+			IdDesc: true,
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -300,8 +299,8 @@ func TestSearchUsersOrderedByID(t *testing.T) {
 		users, err := q.SearchUsersOrderedByID(ctx, conn, db.SearchUsersOrderedByIDParams{
 			Name:   "alice",
 			Email:  setup.StrPtr("alice.x@example.com"),
-			IDAsc:  setup.BoolPtr(true),
-			IDDesc: setup.BoolPtr(true),
+			IdAsc:  true,
+			IdDesc: true,
 		})
 		if err != nil {
 			t.Fatal(err)

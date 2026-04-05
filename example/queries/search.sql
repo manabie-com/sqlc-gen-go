@@ -31,6 +31,6 @@ SELECT * FROM users
 WHERE name = @name
   AND email = @email -- :if @email
 ORDER BY
-  CASE WHEN @id_asc::bool THEN id END ASC,  -- :if @id_asc
-  CASE WHEN @id_desc::bool THEN id END DESC -- :if @id_desc
+  id ASC,  -- :if @id_asc
+  id DESC  -- :if @id_desc
 ;

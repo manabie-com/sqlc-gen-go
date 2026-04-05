@@ -163,21 +163,21 @@ SELECT id, name, email, created_at, phone FROM users
 WHERE name = $1
   AND email = $2 -- :if $2
 ORDER BY
-  CASE WHEN $3::bool THEN id END ASC, -- :if $3
-  CASE WHEN $4::bool THEN id END DESC -- :if $4
+  id ASC, -- :if $3
+  id DESC -- :if $4
 `
 
 type SearchUsersOrderedByIDParams struct {
 	Name   string
 	Email  *string
-	IDAsc  *bool
-	IDDesc *bool
+	IdAsc  bool
+	IdDesc bool
 }
 
 func (q *SearchQueries) SearchUsersOrderedByID(ctx context.Context, db DBTX, arg SearchUsersOrderedByIDParams) ([]*User, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "SearchQueries.SearchUsersOrderedByID")
 	defer tracer.End()
-	dynQuery, dynArgs := DynamicSQL(SearchUsersOrderedByID, []any{arg.Name, arg.Email, arg.IDAsc, arg.IDDesc})
+	dynQuery, dynArgs := DynamicSQL(SearchUsersOrderedByID, []any{arg.Name, arg.Email, arg.IdAsc, arg.IdDesc})
 	rows, err := db.Query(ctx, dynQuery, dynArgs...)
 	if err != nil {
 		return nil, err
