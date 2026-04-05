@@ -101,4 +101,31 @@ func TestDynamicSQL(t *testing.T) {
 			t.Errorf("args len: got %d, want 1", len(args))
 		}
 	})
+
+	// Trailing comma cleanup: when only the first of N annotated items is kept,
+	// DynamicSQL must strip the comma that was separating it from the removed item.
+	const trailingCommaQuery = "SELECT * FROM t\nORDER BY\n  CASE WHEN $1::bool THEN id END ASC, -- :if $1\n  CASE WHEN $2::bool THEN id END DESC -- :if $2"
+
+	t.Run("TrailingComma/OnlyFirstItem", func(t *testing.T) {
+		b := true
+		sql, _ := db.DynamicSQL(trailingCommaQuery, []any{&b, nil})
+		assertContains(t, sql, "ASC")
+		assertAbsent(t, sql, "DESC")
+		// The dangling comma after ASC must be stripped
+		assertAbsent(t, sql, "ASC,")
+	})
+
+	t.Run("TrailingComma/BothItems", func(t *testing.T) {
+		b := true
+		sql, _ := db.DynamicSQL(trailingCommaQuery, []any{&b, &b})
+		// Both kept → comma between them is valid
+		assertContains(t, sql, "ASC,")
+		assertContains(t, sql, "DESC")
+	})
+
+	t.Run("TrailingComma/NeitherItem", func(t *testing.T) {
+		sql, _ := db.DynamicSQL(trailingCommaQuery, []any{nil, nil})
+		assertAbsent(t, sql, "ASC")
+		assertAbsent(t, sql, "DESC")
+	})
 }

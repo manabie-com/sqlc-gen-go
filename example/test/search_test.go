@@ -175,6 +175,7 @@ func TestSearchUsersOrderedByID(t *testing.T) {
 		sql, a := db.DynamicSQL(db.SearchUsersOrderedByID, []any{"alice", nil, boolPtr(true), nil})
 		assertContains(t, sql, "ASC")
 		assertAbsent(t, sql, "DESC")
+		assertAbsent(t, sql, "ASC,") // trailing comma must be stripped
 		// $1=name, $2=IDAsc (bool pointer kept as SQL param)
 		if len(a) != 2 {
 			t.Errorf("args len: got %d, want 2", len(a))

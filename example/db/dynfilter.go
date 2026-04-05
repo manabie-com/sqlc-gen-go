@@ -75,6 +75,20 @@ func DynamicSQL(query string, args []any) (string, []any) {
 		kept = append(kept, line)
 	}
 
+	// Strip a dangling trailing comma: when the last item in a list (ORDER BY,
+	// SELECT columns, etc.) is removed, the previously-last item may be left
+	// with a trailing comma that produces invalid SQL.
+	for i := len(kept) - 1; i >= 0; i-- {
+		if strings.TrimSpace(kept[i]) == "" {
+			continue
+		}
+		noTrail := strings.TrimRight(kept[i], " \t")
+		if strings.HasSuffix(noTrail, ",") {
+			kept[i] = noTrail[:len(noTrail)-1]
+		}
+		break
+	}
+
 	return dynRemapPlaceholders(strings.Join(kept, "\n"), args)
 }
 

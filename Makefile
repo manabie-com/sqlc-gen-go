@@ -1,4 +1,4 @@
-.PHONY: build test
+.PHONY: build test example-e2e example-e2e-setup example-e2e-down
 
 build:
 	go build ./...
@@ -23,3 +23,15 @@ bin:
 
 generate-example:
 	cd example && sqlc generate && go generate ./...
+
+example-e2e-setup:
+	docker compose -f example/e2e-setup/docker-compose.yml up -d --wait
+
+example-e2e-down:
+	docker compose -f $(CURDIR)/example/e2e-setup/docker-compose.yml down
+
+example-e2e: example-e2e-setup
+	cd example && go test ./e2e/... -v; \
+	EXIT=$$?; \
+	$(MAKE) -C $(CURDIR) example-e2e-down; \
+	exit $$EXIT
