@@ -245,9 +245,18 @@ func TestSearchUsersOrderedByID(t *testing.T) {
 	a1 := setup.InsertUser(t, conn, "alice", "alice.x@example.com", nil)
 	a2 := setup.InsertUser(t, conn, "alice", "alice.y@example.com", nil)
 
-	// Note: NoOrderFlags (IdAsc=false, IdDesc=false) is not tested here — both
-	// lines removed leaves an empty "ORDER BY" clause (syntax error) because the
-	// query has no fallback line. That case is covered by unit tests in example/test.
+	t.Run("NoOrderFlags", func(t *testing.T) {
+		// Both flags false → ORDER BY removed entirely, query still valid.
+		users, err := q.SearchUsersOrderedByID(ctx, conn, db.SearchUsersOrderedByIDParams{
+			Name: "alice",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 2 {
+			t.Errorf("got %d users, want 2", len(users))
+		}
+	})
 
 	t.Run("IDAsc", func(t *testing.T) {
 		users, err := q.SearchUsersOrderedByID(ctx, conn, db.SearchUsersOrderedByIDParams{
