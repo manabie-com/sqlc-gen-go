@@ -25,3 +25,12 @@ ORDER BY
   created_at DESC, -- :if @order_created_at_desc
   name ASC, -- :if @order_name_asc
   id ASC;
+
+-- name: SearchUsersOrderedByID :many
+SELECT * FROM users
+WHERE name = @name
+  AND email = @email -- :if @email
+ORDER BY
+  CASE WHEN @id_asc::bool THEN id END ASC,  -- :if @id_asc
+  CASE WHEN @id_desc::bool THEN id END DESC -- :if @id_desc
+;

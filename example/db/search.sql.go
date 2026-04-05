@@ -158,11 +158,57 @@ func (q *SearchQueries) SearchUsersOrdered(ctx context.Context, db DBTX, arg Sea
 	return items, nil
 }
 
+const SearchUsersOrderedByID = `-- name: SearchUsersOrderedByID :many
+SELECT id, name, email, created_at, phone FROM users
+WHERE name = $1
+  AND email = $2 -- :if $2
+ORDER BY
+  CASE WHEN $3::bool THEN id END ASC, -- :if $3
+  CASE WHEN $4::bool THEN id END DESC -- :if $4
+`
+
+type SearchUsersOrderedByIDParams struct {
+	Name   string
+	Email  *string
+	IDAsc  *bool
+	IDDesc *bool
+}
+
+func (q *SearchQueries) SearchUsersOrderedByID(ctx context.Context, db DBTX, arg SearchUsersOrderedByIDParams) ([]*User, error) {
+	ctx, tracer := tracing.StartTracing(ctx, "SearchQueries.SearchUsersOrderedByID")
+	defer tracer.End()
+	dynQuery, dynArgs := DynamicSQL(SearchUsersOrderedByID, []any{arg.Name, arg.Email, arg.IDAsc, arg.IDDesc})
+	rows, err := db.Query(ctx, dynQuery, dynArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Email,
+			&i.CreatedAt,
+			&i.Phone,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 type SearchQuerier interface {
 	SearchUsers(ctx context.Context, db DBTX, arg SearchUsersParams) ([]*User, error)
 	// Include the combined contact filter only when BOTH email AND phone are provided.
 	SearchUsersByContact(ctx context.Context, db DBTX, arg SearchUsersByContactParams) ([]*User, error)
 	SearchUsersOrdered(ctx context.Context, db DBTX, arg SearchUsersOrderedParams) ([]*User, error)
+	SearchUsersOrderedByID(ctx context.Context, db DBTX, arg SearchUsersOrderedByIDParams) ([]*User, error)
 }
 
 var _ SearchQuerier = (*SearchQueries)(nil)

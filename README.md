@@ -166,7 +166,8 @@ options:
 ```sql
 -- name: SearchUsers :many
 SELECT * FROM users
-WHERE name = @name
+WHERE
+  1 = 1
   AND email = @email           -- :if @email        -- omit if email is nil
   AND phone = @phone           -- :if @phone        -- omit if phone is nil
   AND EXISTS (                 -- :if @has_orders   -- flag-only bool
@@ -178,7 +179,8 @@ ORDER BY id ASC;
 
 -- name: SearchUsersOrdered :many
 SELECT * FROM users
-WHERE name = @name
+WHERE
+  1 = 1
   AND email = @email           -- :if @email
 ORDER BY
   created_at DESC,             -- :if @order_created_at_desc
@@ -189,15 +191,14 @@ ORDER BY
 **Note:**
 For complex cases with ORDER BY, we recommend using CASE statements because they do not affect query performance like WHERE clauses:
 ```sql
-CASE WHEN @flag1 THEN id ASC END,
-CASE WHEN @flag2 THEN id DESC END;
+  CASE WHEN @id_asc::bool THEN id END ASC,  -- :if @id_asc
+  CASE WHEN @id_desc::bool THEN id END DESC -- :if @id_desc
 ```
 
 **Generated Go**
 
 ```go
 type SearchUsersParams struct {
-    Name        string
     Email       *string    // nil → clause skipped
     Phone       *string    // nil → clause skipped
     OrdersSince *time.Time // nil → clause skipped
@@ -206,7 +207,7 @@ type SearchUsersParams struct {
 
 func (q *SearchQueries) SearchUsers(ctx context.Context, db DBTX, arg SearchUsersParams) ([]*User, error) {
 ...
-    dynQuery, dynArgs := DynamicSQL(SearchUsers, []any{arg.Name, arg.Email, arg.Phone, arg.OrdersSince, arg.HasOrders})
+    dynQuery, dynArgs := DynamicSQL(SearchUsers, []any{arg.Email, arg.Phone, arg.OrdersSince, arg.HasOrders})
     rows, err := db.Query(ctx, dynQuery, dynArgs...)
 ...
 }
