@@ -34,3 +34,10 @@ ORDER BY
   id ASC,  -- :if @id_asc
   id DESC  -- :if @id_desc
 ;
+
+-- name: SearchUsersWithSameNameAndEmail :many
+SELECT * FROM users
+WHERE 1 = 1
+  AND name = @name -- :if @name
+  AND email = @name -- :if @name
+ORDER BY id ASC;

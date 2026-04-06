@@ -241,6 +241,37 @@ ORDER BY id ASC`)
 	})
 }
 
+func TestSearchUsersWithSameNameAndEmail(t *testing.T) {
+	t.Run("NameNil", func(t *testing.T) {
+		// When name is nil both AND lines are dropped (they share the same :if $1 annotation).
+		sql, a := db.DynamicSQL(db.SearchUsersWithSameNameAndEmail, []any{(*string)(nil)})
+		assertSQL(t, sql, `-- name: SearchUsersWithSameNameAndEmail :many
+SELECT id, name, email, created_at, phone FROM users
+WHERE 1 = 1
+ORDER BY id ASC`)
+		if len(a) != 0 {
+			t.Errorf("expected 0 args, got %d", len(a))
+		}
+	})
+
+	t.Run("NameProvided", func(t *testing.T) {
+		// Both AND lines are kept and share the same $1 placeholder (1 arg).
+		sql, a := db.DynamicSQL(db.SearchUsersWithSameNameAndEmail, []any{strPtr("alice")})
+		assertSQL(t, sql, `-- name: SearchUsersWithSameNameAndEmail :many
+SELECT id, name, email, created_at, phone FROM users
+WHERE 1 = 1
+  AND name = $1
+  AND email = $1
+ORDER BY id ASC`)
+		if len(a) != 1 {
+			t.Errorf("expected 1 arg ($1=name), got %d", len(a))
+		}
+		if got, ok := a[0].(*string); !ok || *got != "alice" {
+			t.Errorf("expected arg[0] to be *string \"alice\"")
+		}
+	})
+}
+
 func TestSearchUsersOrderedByID(t *testing.T) {
 	t.Run("IDAsc", func(t *testing.T) {
 		// IdAsc/IdDesc are annotation-only bool flags — not SQL placeholders

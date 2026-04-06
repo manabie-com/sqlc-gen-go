@@ -112,10 +112,15 @@ func dynCompile(annotatedSQL string) *dynCompiledQuery {
 
 // Build applies the pre-compiled filter to args and returns the final SQL
 // and the trimmed args slice. The method is safe to call concurrently.
+//
+// When the same original $N appears more than once in the active segments
+// (e.g. both "name = $1" and "email = $1"), the returned SQL reuses the
+// same renumbered placeholder and the arg is included only once.
 func (q *dynCompiledQuery) Build(args []any) (string, []any) {
 	var b strings.Builder
 	var outArgs []any
 	n := 1
+	argIdxToN := make(map[int]int) // original argIdx (0-based) -> output $N
 
 	for _, seg := range q.segs {
 		// Check all conditions.
@@ -134,12 +139,19 @@ func (q *dynCompiledQuery) Build(args []any) (string, []any) {
 		for i, part := range seg.parts {
 			b.WriteString(part)
 			if i < len(seg.argNums) {
-				b.WriteByte('$')
-				dynWriteInt(&b, n)
-				n++
 				argIdx := seg.argNums[i] - 1
-				if argIdx >= 0 && argIdx < len(args) {
-					outArgs = append(outArgs, args[argIdx])
+				if existing, ok := argIdxToN[argIdx]; ok {
+					// Same original param already emitted — reuse its placeholder.
+					b.WriteByte('$')
+					dynWriteInt(&b, existing)
+				} else {
+					b.WriteByte('$')
+					dynWriteInt(&b, n)
+					argIdxToN[argIdx] = n
+					n++
+					if argIdx >= 0 && argIdx < len(args) {
+						outArgs = append(outArgs, args[argIdx])
+					}
 				}
 			}
 		}

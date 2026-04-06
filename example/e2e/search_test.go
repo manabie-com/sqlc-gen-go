@@ -319,3 +319,71 @@ func TestSearchUsersOrderedByID(t *testing.T) {
 		}
 	})
 }
+
+func TestSearchUsersWithSameNameAndEmail(t *testing.T) {
+	conn := setup.NewDB(t, "../schema.sql")
+	ctx := context.Background()
+	q := db.NewSearchQueries()
+
+	// "dual" user: name and email are the same string — matches both conditions.
+	dual := setup.InsertUser(t, conn, "dual", "dual", nil)
+	// "normal" user: name matches the search term but email differs — never matches.
+	normal := setup.InsertUser(t, conn, "dual", "dual@example.com", nil)
+
+	t.Run("NameNil_ReturnsAll", func(t *testing.T) {
+		// No filter applied → all users in the table (scoped to this test's DB).
+		users, err := q.SearchUsersWithSameNameAndEmail(ctx, conn, db.SearchUsersWithSameNameAndEmailParams{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids := make(map[int64]bool, len(users))
+		for _, u := range users {
+			ids[u.ID] = true
+		}
+		if !ids[dual.ID] || !ids[normal.ID] {
+			t.Errorf("expected both dual and normal to be returned when Name is nil")
+		}
+	})
+
+	t.Run("NameProvided_OnlyDualUser", func(t *testing.T) {
+		// Both name = $1 AND email = $1 must hold — only dual qualifies.
+		users, err := q.SearchUsersWithSameNameAndEmail(ctx, conn, db.SearchUsersWithSameNameAndEmailParams{
+			Name: setup.StrPtr("dual"),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 1 || users[0].ID != dual.ID {
+			t.Errorf("got %v, want only dual user (%d)", users, dual.ID)
+		}
+	})
+
+	t.Run("NameProvided_NoMatch", func(t *testing.T) {
+		// No user has both name="nobody" and email="nobody".
+		users, err := q.SearchUsersWithSameNameAndEmail(ctx, conn, db.SearchUsersWithSameNameAndEmailParams{
+			Name: setup.StrPtr("nobody"),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 0 {
+			t.Errorf("got %d users, want 0", len(users))
+		}
+	})
+
+	t.Run("NormalUser_NotReturned", func(t *testing.T) {
+		// Confirm normal (name="dual", email="dual@example.com") is excluded
+		// when the filter is active — email doesn't match the search value.
+		users, err := q.SearchUsersWithSameNameAndEmail(ctx, conn, db.SearchUsersWithSameNameAndEmailParams{
+			Name: setup.StrPtr("dual"),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, u := range users {
+			if u.ID == normal.ID {
+				t.Errorf("normal user (email≠name) should not be returned")
+			}
+		}
+	})
+}
