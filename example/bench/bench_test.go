@@ -127,25 +127,25 @@ var (
 )
 
 func BenchmarkDynamicSQL_NoOptional(b *testing.B) {
-	for b.Loop() {
+	for i := 0; i < b.N; i++ {
 		db.DynamicSQL(db.SearchUsers, []any{"alice", (*string)(nil), (*string)(nil), (*time.Time)(nil), false})
 	}
 }
 
 func BenchmarkManual_NoOptional(b *testing.B) {
-	for b.Loop() {
+	for i := 0; i < b.N; i++ {
 		manualSearchUsers("alice", nil, nil, nil, false)
 	}
 }
 
 func BenchmarkDynamicSQL_AllOptional(b *testing.B) {
-	for b.Loop() {
+	for i := 0; i < b.N; i++ {
 		db.DynamicSQL(db.SearchUsers, []any{"alice", benchEmail, benchPhone, benchTime, true})
 	}
 }
 
 func BenchmarkManual_AllOptional(b *testing.B) {
-	for b.Loop() {
+	for i := 0; i < b.N; i++ {
 		manualSearchUsers("alice", benchEmail, benchPhone, benchTime, true)
 	}
 }
@@ -166,55 +166,55 @@ var preCompiledSearchUsers = db.CompileDynSQL(db.SearchUsers)
 var preCompiledLargeQuery = db.CompileDynSQL(largeQuery)
 
 func BenchmarkDynamicSQL_Large_NoOptional(b *testing.B) {
-	for b.Loop() {
+	for i := 0; i < b.N; i++ {
 		db.DynamicSQL(largeQuery, largeArgsNone)
 	}
 }
 
 func BenchmarkPreCompiled_Large_NoOptional(b *testing.B) {
-	for b.Loop() {
+	for i := 0; i < b.N; i++ {
 		preCompiledLargeQuery.Build(largeArgsNone)
 	}
 }
 
 func BenchmarkManual_Large_NoOptional(b *testing.B) {
-	for b.Loop() {
+	for i := 0; i < b.N; i++ {
 		manualLargeSearch("alice", largeFiltNone)
 	}
 }
 
 func BenchmarkDynamicSQL_Large_AllOptional(b *testing.B) {
-	for b.Loop() {
+	for i := 0; i < b.N; i++ {
 		db.DynamicSQL(largeQuery, largeArgsAll)
 	}
 }
 
 func BenchmarkPreCompiled_Large_AllOptional(b *testing.B) {
-	for b.Loop() {
+	for i := 0; i < b.N; i++ {
 		preCompiledLargeQuery.Build(largeArgsAll)
 	}
 }
 
 func BenchmarkManual_Large_AllOptional(b *testing.B) {
-	for b.Loop() {
+	for i := 0; i < b.N; i++ {
 		manualLargeSearch("alice", largeFiltAll)
 	}
 }
 
 func BenchmarkDynamicSQL_NoOptional2(b *testing.B) {
-	for b.Loop() {
+	for i := 0; i < b.N; i++ {
 		db.DynamicSQL(db.SearchUsers, []any{"alice", (*string)(nil), (*string)(nil), (*time.Time)(nil), false})
 	}
 }
 
 func BenchmarkPreCompiled_NoOptional(b *testing.B) {
-	for b.Loop() {
+	for i := 0; i < b.N; i++ {
 		preCompiledSearchUsers.Build([]any{"alice", (*string)(nil), (*string)(nil), (*time.Time)(nil), false})
 	}
 }
 
 func BenchmarkPreCompiled_AllOptional(b *testing.B) {
-	for b.Loop() {
+	for i := 0; i < b.N; i++ {
 		preCompiledSearchUsers.Build([]any{"alice", benchEmail, benchPhone, benchTime, true})
 	}
 }

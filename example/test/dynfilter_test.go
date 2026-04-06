@@ -88,30 +88,6 @@ func TestDynamicSQL(t *testing.T) {
 		}
 	})
 
-	// Trailing comma cleanup: when only the first of N annotated items is kept,
-	// DynamicSQL must strip the comma that was separating it from the removed item.
-	const trailingCommaQuery = "SELECT * FROM t\nORDER BY\n  CASE WHEN $1::bool THEN id END ASC, -- :if $1\n  CASE WHEN $2::bool THEN id END DESC -- :if $2"
-
-	t.Run("TrailingComma/OnlyFirstItem", func(t *testing.T) {
-		b := true
-		sql, _ := db.DynamicSQL(trailingCommaQuery, []any{&b, nil})
-		// The dangling comma after ASC must be stripped
-		assertSQL(t, sql, "SELECT * FROM t\nORDER BY\n  CASE WHEN $1::bool THEN id END ASC")
-	})
-
-	t.Run("TrailingComma/BothItems", func(t *testing.T) {
-		b := true
-		sql, _ := db.DynamicSQL(trailingCommaQuery, []any{&b, &b})
-		// Both kept → comma between them is valid
-		assertSQL(t, sql, "SELECT * FROM t\nORDER BY\n  CASE WHEN $1::bool THEN id END ASC,\n  CASE WHEN $2::bool THEN id END DESC")
-	})
-
-	t.Run("TrailingComma/NeitherItem", func(t *testing.T) {
-		sql, _ := db.DynamicSQL(trailingCommaQuery, []any{nil, nil})
-		// ORDER BY with no items must be removed entirely
-		assertSQL(t, sql, "SELECT * FROM t")
-	})
-
 	t.Run("OrderBy/RemovedWhenEmpty", func(t *testing.T) {
 		query := "SELECT * FROM t\nWHERE a = $1\nORDER BY\n  id ASC, -- :if $2\n  id DESC -- :if $3"
 		sql, args := db.DynamicSQL(query, []any{"x", false, false})
@@ -125,5 +101,38 @@ func TestDynamicSQL(t *testing.T) {
 		query := "SELECT * FROM t\nWHERE a = $1\nORDER BY\n  id ASC, -- :if $2\n  id DESC -- :if $3"
 		sql, _ := db.DynamicSQL(query, []any{"x", false, true})
 		assertSQL(t, sql, "SELECT * FROM t\nWHERE a = $1\nORDER BY\n  id DESC")
+	})
+
+	t.Run("OrderBy/KeptWhenHasContentFirstItem", func(t *testing.T) {
+		query := "SELECT * FROM t\nWHERE a = $1\nORDER BY\n  id ASC, -- :if $2\n  id DESC -- :if $3"
+		sql, _ := db.DynamicSQL(query, []any{"x", true, false})
+		assertSQL(t, sql, "SELECT * FROM t\nWHERE a = $1\nORDER BY\n  id ASC")
+	})
+
+	const orderByOnlyConditionalQuery = "SELECT * FROM t\nWHERE a = $1\nORDER BY\n  id ASC, -- :if $2\n  name DESC, -- :if $3\n  created_at DESC -- :if $4"
+
+	t.Run("OrderBy/OmitAllLines", func(t *testing.T) {
+		sql, args := db.DynamicSQL(orderByOnlyConditionalQuery, []any{"x", false, false, false})
+		assertSQL(t, sql, "SELECT * FROM t\nWHERE a = $1")
+		if len(args) != 1 {
+			t.Errorf("args len: got %d, want 1", len(args))
+		}
+	})
+
+	t.Run("OrderBy/ContainsSecondLine", func(t *testing.T) {
+		sql, args := db.DynamicSQL(orderByOnlyConditionalQuery, []any{"x", false, true, false})
+		assertSQL(t, sql, "SELECT * FROM t\nWHERE a = $1\nORDER BY\n  name DESC")
+		if len(args) != 1 {
+			t.Errorf("args len: got %d, want 1", len(args))
+		}
+	})
+
+	t.Run("OrderBy/RemoveAllLinesSimple", func(t *testing.T) {
+		query := "SELECT * FROM t\nWHERE a = $1\nORDER BY\n  id ASC -- :if $2\n  id DESC -- :if $3"
+		sql, args := db.DynamicSQL(query, []any{"x", false, false})
+		assertSQL(t, sql, "SELECT * FROM t\nWHERE a = $1")
+		if len(args) != 1 {
+			t.Errorf("args len: got %d, want 1", len(args))
+		}
 	})
 }

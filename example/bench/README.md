@@ -42,6 +42,30 @@ go test ./bench -bench=. -benchmem -count=3 -run='^$'
 | **PreCompiled — all optional**  |   **817** | **~1.22 M** | **2,384** |  **10** |
 | Manual — all optional           | 1,919 |   ~521 K | 1,920 |        27 |
 
+## Results (Intel Core i7-11800H @ 2.30GHz)
+
+### Small query (5 params, 4 optional)
+
+| Benchmark                       | ns/op |    req/s | B/op  | allocs/op |
+|---------------------------------|------:|---------:|------:|----------:|
+| DynamicSQL — no optional        | 2,291 |   ~437 K | 3,688 |        46 |
+| **PreCompiled — no optional**   |   **175** | **~5.71 M** |  **304** |    **3** |
+| Manual — no optional            |   131 |  ~7.63 M |   368 |         5 |
+| DynamicSQL — all optional       | 2,521 |   ~397 K | 4,168 |        49 |
+| **PreCompiled — all optional**  |   **358** | **~2.79 M** |  **784** |    **6** |
+| Manual — all optional           |   437 |  ~2.29 M |   688 |         6 |
+
+### Large query (21 params, 20 optional)
+
+| Benchmark                       | ns/op |    req/s |  B/op | allocs/op |
+|---------------------------------|------:|---------:|------:|----------:|
+| DynamicSQL — no optional        | 7,327 |   ~136 K | 7,472 |       119 |
+| **PreCompiled — no optional**   |   **226** | **~4.42 M** |  **304** |    **3** |
+| Manual — no optional            |   208 |  ~4.81 M |   640 |         5 |
+| DynamicSQL — all optional       | 6,501 |   ~154 K | 9,552 |       126 |
+| **PreCompiled — all optional**  |   **951** | **~1.05 M** | **2,384** |  **10** |
+| Manual — all optional           | 2,339 |   ~428 K | 1,921 |        27 |
+
 ## How it works
 
 When `emit_dynamic_filter: true` is set, the generator now emits a package-level

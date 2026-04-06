@@ -1,6 +1,6 @@
 module github.com/vtuanjs/sqlc-gen-go
 
-go 1.21.3
+go 1.24.13
 
 require (
 	github.com/fatih/structtag v1.2.0

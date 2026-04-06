@@ -2,27 +2,11 @@ package db
 
 import (
 	"example/db"
-	"strings"
 	"testing"
 	"time"
 )
 
 func strPtr(v string) *string { return &v }
-func boolPtr(v bool) *bool    { return &v }
-
-func assertContains(t *testing.T, sql, substr string) {
-	t.Helper()
-	if !strings.Contains(sql, substr) {
-		t.Errorf("expected %q in:\n%s", substr, sql)
-	}
-}
-
-func assertAbsent(t *testing.T, sql, substr string) {
-	t.Helper()
-	if strings.Contains(sql, substr) {
-		t.Errorf("unexpected %q in:\n%s", substr, sql)
-	}
-}
 
 func assertSQL(t *testing.T, got, want string) {
 	t.Helper()
