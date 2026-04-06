@@ -97,19 +97,27 @@ func TestGenerateDynamicFilter(t *testing.T) {
 		t.Error("expected 'IdDesc' bool field in params struct")
 	}
 
-	// Verify DynamicSQL is called in the generated method
-	if !strings.Contains(queryFile, "DynamicSQL(") {
+	// Verify pre-compiled dynQuery var and Build call are in the generated method
+	if !strings.Contains(queryFile, "dynCompile(") {
 		t.Logf("query file:\n%s", queryFile)
-		t.Error("expected DynamicSQL call in generated query method")
+		t.Error("expected dynCompile var declaration in generated query file")
+	}
+	if !strings.Contains(queryFile, ".Build(") {
+		t.Logf("query file:\n%s", queryFile)
+		t.Error("expected .Build( call in generated query method")
 	}
 
-	// Verify dynfilter.go contains the DynamicSQL function
+	// Verify dynfilter.go contains the core functions
+	if !strings.Contains(dynfilterFile, "func dynCompile(") {
+		t.Logf("dynfilter file:\n%s", dynfilterFile)
+		t.Error("expected dynCompile function in dynfilter.go")
+	}
 	if !strings.Contains(dynfilterFile, "func DynamicSQL(") {
 		t.Logf("dynfilter file:\n%s", dynfilterFile)
 		t.Error("expected DynamicSQL function in dynfilter.go")
 	}
 
-	// Verify the SQL constant has -- :if $N markers
+	// Verify the SQL constant still has -- :if $N markers (used by dynCompile)
 	if !strings.Contains(queryFile, "-- :if $") {
 		t.Logf("query file:\n%s", queryFile)
 		t.Error("expected '-- :if $N' markers in SQL constant")
@@ -190,8 +198,8 @@ func TestGenerateDynamicFilter_FlagOnlyParams(t *testing.T) {
 	if !strings.Contains(queryFile, "SortDesc") {
 		t.Errorf("expected SortDesc bool field, got:\n%s", queryFile)
 	}
-	if !strings.Contains(queryFile, "DynamicSQL(") {
-		t.Errorf("expected DynamicSQL call, got:\n%s", queryFile)
+	if !strings.Contains(queryFile, ".Build(") {
+		t.Errorf("expected .Build( call, got:\n%s", queryFile)
 	}
 	t.Logf("Generated:\n%s", queryFile)
 }
@@ -252,6 +260,10 @@ func TestGenerateDynamicFilter_BlockAnnotation(t *testing.T) {
 	// The SQL constant should have a standalone :if marker for the block annotation.
 	if !strings.Contains(queryFile, "-- :if $") {
 		t.Errorf("expected :if $N marker in SQL constant, got:\n%s", queryFile)
+	}
+	// Verify the new pre-compiled approach is used.
+	if !strings.Contains(queryFile, "dynCompile(") {
+		t.Errorf("expected dynCompile var declaration, got:\n%s", queryFile)
 	}
 	// filter_status is a flag-only param → bool field, not a pointer.
 	if !strings.Contains(queryFile, "FilterStatus") {

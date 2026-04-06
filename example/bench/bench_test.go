@@ -159,9 +159,21 @@ var (
 	largeFiltAll  = makeLargeFilters(true)
 )
 
+// preCompiledSearchUsers simulates the generated package-level var:
+//
+//	var _searchUsersDynQ = dynCompile(SearchUsersSQL)
+var preCompiledSearchUsers = db.CompileDynSQL(db.SearchUsers)
+var preCompiledLargeQuery = db.CompileDynSQL(largeQuery)
+
 func BenchmarkDynamicSQL_Large_NoOptional(b *testing.B) {
 	for b.Loop() {
 		db.DynamicSQL(largeQuery, largeArgsNone)
+	}
+}
+
+func BenchmarkPreCompiled_Large_NoOptional(b *testing.B) {
+	for b.Loop() {
+		preCompiledLargeQuery.Build(largeArgsNone)
 	}
 }
 
@@ -177,8 +189,32 @@ func BenchmarkDynamicSQL_Large_AllOptional(b *testing.B) {
 	}
 }
 
+func BenchmarkPreCompiled_Large_AllOptional(b *testing.B) {
+	for b.Loop() {
+		preCompiledLargeQuery.Build(largeArgsAll)
+	}
+}
+
 func BenchmarkManual_Large_AllOptional(b *testing.B) {
 	for b.Loop() {
 		manualLargeSearch("alice", largeFiltAll)
+	}
+}
+
+func BenchmarkDynamicSQL_NoOptional2(b *testing.B) {
+	for b.Loop() {
+		db.DynamicSQL(db.SearchUsers, []any{"alice", (*string)(nil), (*string)(nil), (*time.Time)(nil), false})
+	}
+}
+
+func BenchmarkPreCompiled_NoOptional(b *testing.B) {
+	for b.Loop() {
+		preCompiledSearchUsers.Build([]any{"alice", (*string)(nil), (*string)(nil), (*time.Time)(nil), false})
+	}
+}
+
+func BenchmarkPreCompiled_AllOptional(b *testing.B) {
+	for b.Loop() {
+		preCompiledSearchUsers.Build([]any{"alice", benchEmail, benchPhone, benchTime, true})
 	}
 }

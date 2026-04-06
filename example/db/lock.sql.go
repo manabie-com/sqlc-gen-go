@@ -28,6 +28,8 @@ LIMIT 1
 FOR UPDATE -- :if $2
 `
 
+var _getUserWithLockDynQ = dynCompile(GetUserWithLock)
+
 type GetUserWithLockParams struct {
 	ID   int64
 	Lock bool
@@ -36,7 +38,7 @@ type GetUserWithLockParams struct {
 func (q *LockQueries) GetUserWithLock(ctx context.Context, db DBTX, arg GetUserWithLockParams) (*User, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "LockQueries.GetUserWithLock")
 	defer tracer.End()
-	dynQuery, dynArgs := DynamicSQL(GetUserWithLock, []any{arg.ID, arg.Lock})
+	dynQuery, dynArgs := _getUserWithLockDynQ.Build([]any{arg.ID, arg.Lock})
 	row := db.QueryRow(ctx, dynQuery, dynArgs...)
 	var i User
 	err := row.Scan(

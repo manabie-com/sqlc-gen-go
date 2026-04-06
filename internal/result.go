@@ -540,7 +540,7 @@ func applyDynFilter(_ *plugin.GenerateRequest, options *opts.Options, gq *Query,
 		}
 	}
 
-	// Build DynFilterArgs: the ordered list of field expressions for DynamicSQL.
+	// Build DynFilterArgs: the ordered list of field expressions for Build.
 	// Ordering must match the :dynif N indices produced by ParseDynFilter.
 	// ParseDynFilter assigns indices in order of first appearance in the SQL.
 	// We need to reconstruct that order here.
@@ -548,6 +548,7 @@ func applyDynFilter(_ *plugin.GenerateRequest, options *opts.Options, gq *Query,
 	// For SQL params: expression is "arg.FieldName" (or just "paramName" if single)
 	// For flag params: expression is "arg.FlagName"
 	gq.DynFilterArgs = buildDynFilterArgs(gq, sqlParams, info)
+	gq.DynQueryVar = "_" + sdk.LowerTitle(gq.MethodName) + "DynQ"
 
 	return nil
 }

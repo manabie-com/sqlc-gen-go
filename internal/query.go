@@ -270,9 +270,12 @@ type Query struct {
 	// HasDynFilter is true when the query has -- :if annotations and
 	// emit_dynamic_filter is enabled.
 	HasDynFilter bool
-	// DynFilterArgs is the pre-rendered args expression for the DynamicSQL call,
+	// DynFilterArgs is the pre-rendered args expression for the Build call,
 	// e.g. "arg.A, arg.B, arg.C, arg.IdAsc, arg.IdDesc"
 	DynFilterArgs string
+	// DynQueryVar is the package-level variable name for the pre-compiled
+	// dynCompiledQuery (e.g. "_searchItemsDynQ").
+	DynQueryVar string
 }
 
 func (q Query) IsSelect() bool {

@@ -32,6 +32,8 @@ WHERE name = $1
 ORDER BY id ASC
 `
 
+var _searchUsersDynQ = dynCompile(SearchUsers)
+
 type SearchUsersParams struct {
 	Name        string
 	Email       *string
@@ -43,7 +45,7 @@ type SearchUsersParams struct {
 func (q *SearchQueries) SearchUsers(ctx context.Context, db DBTX, arg SearchUsersParams) ([]*User, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "SearchQueries.SearchUsers")
 	defer tracer.End()
-	dynQuery, dynArgs := DynamicSQL(SearchUsers, []any{arg.Name, arg.Email, arg.Phone, arg.OrdersSince, arg.HasOrders})
+	dynQuery, dynArgs := _searchUsersDynQ.Build([]any{arg.Name, arg.Email, arg.Phone, arg.OrdersSince, arg.HasOrders})
 	rows, err := db.Query(ctx, dynQuery, dynArgs...)
 	if err != nil {
 		return nil, err
@@ -76,6 +78,8 @@ WHERE name = $1
 ORDER BY id ASC
 `
 
+var _searchUsersByContactDynQ = dynCompile(SearchUsersByContact)
+
 type SearchUsersByContactParams struct {
 	Name  string
 	Email *string
@@ -86,7 +90,7 @@ type SearchUsersByContactParams struct {
 func (q *SearchQueries) SearchUsersByContact(ctx context.Context, db DBTX, arg SearchUsersByContactParams) ([]*User, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "SearchQueries.SearchUsersByContact")
 	defer tracer.End()
-	dynQuery, dynArgs := DynamicSQL(SearchUsersByContact, []any{arg.Name, arg.Email, arg.Phone})
+	dynQuery, dynArgs := _searchUsersByContactDynQ.Build([]any{arg.Name, arg.Email, arg.Phone})
 	rows, err := db.Query(ctx, dynQuery, dynArgs...)
 	if err != nil {
 		return nil, err
@@ -122,6 +126,8 @@ ORDER BY
   id ASC
 `
 
+var _searchUsersOrderedDynQ = dynCompile(SearchUsersOrdered)
+
 type SearchUsersOrderedParams struct {
 	Name               string
 	Email              *string
@@ -132,7 +138,7 @@ type SearchUsersOrderedParams struct {
 func (q *SearchQueries) SearchUsersOrdered(ctx context.Context, db DBTX, arg SearchUsersOrderedParams) ([]*User, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "SearchQueries.SearchUsersOrdered")
 	defer tracer.End()
-	dynQuery, dynArgs := DynamicSQL(SearchUsersOrdered, []any{arg.Name, arg.Email, arg.OrderCreatedAtDesc, arg.OrderNameAsc})
+	dynQuery, dynArgs := _searchUsersOrderedDynQ.Build([]any{arg.Name, arg.Email, arg.OrderCreatedAtDesc, arg.OrderNameAsc})
 	rows, err := db.Query(ctx, dynQuery, dynArgs...)
 	if err != nil {
 		return nil, err
@@ -167,6 +173,8 @@ ORDER BY
   id DESC -- :if $4
 `
 
+var _searchUsersOrderedByIDDynQ = dynCompile(SearchUsersOrderedByID)
+
 type SearchUsersOrderedByIDParams struct {
 	Name   string
 	Email  *string
@@ -177,7 +185,7 @@ type SearchUsersOrderedByIDParams struct {
 func (q *SearchQueries) SearchUsersOrderedByID(ctx context.Context, db DBTX, arg SearchUsersOrderedByIDParams) ([]*User, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "SearchQueries.SearchUsersOrderedByID")
 	defer tracer.End()
-	dynQuery, dynArgs := DynamicSQL(SearchUsersOrderedByID, []any{arg.Name, arg.Email, arg.IdAsc, arg.IdDesc})
+	dynQuery, dynArgs := _searchUsersOrderedByIDDynQ.Build([]any{arg.Name, arg.Email, arg.IdAsc, arg.IdDesc})
 	rows, err := db.Query(ctx, dynQuery, dynArgs...)
 	if err != nil {
 		return nil, err
