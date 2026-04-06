@@ -8,6 +8,85 @@ import (
 	"time"
 )
 
+// largeQuery simulates a query with 20 optional filter conditions.
+// $1 is the required name; $2–$21 are optional string filters.
+const largeQuery = `-- name: LargeSearch :many
+SELECT id, name, email, created_at, phone FROM users
+WHERE name = $1
+  AND f1 = $2 -- :if $2
+  AND f2 = $3 -- :if $3
+  AND f3 = $4 -- :if $4
+  AND f4 = $5 -- :if $5
+  AND f5 = $6 -- :if $6
+  AND f6 = $7 -- :if $7
+  AND f7 = $8 -- :if $8
+  AND f8 = $9 -- :if $9
+  AND f9 = $10 -- :if $10
+  AND f10 = $11 -- :if $11
+  AND f11 = $12 -- :if $12
+  AND f12 = $13 -- :if $13
+  AND f13 = $14 -- :if $14
+  AND f14 = $15 -- :if $15
+  AND f15 = $16 -- :if $16
+  AND f16 = $17 -- :if $17
+  AND f17 = $18 -- :if $18
+  AND f18 = $19 -- :if $19
+  AND f19 = $20 -- :if $20
+  AND f20 = $21 -- :if $21
+ORDER BY id ASC
+`
+
+func manualLargeSearch(name string, filters [20]*string) (string, []any) {
+	var sb strings.Builder
+	args := make([]any, 0, 21)
+	idx := 1
+
+	sb.WriteString("SELECT id, name, email, created_at, phone FROM users\nWHERE name = $1")
+	args = append(args, name)
+	idx++
+
+	fields := [20]string{
+		"f1", "f2", "f3", "f4", "f5",
+		"f6", "f7", "f8", "f9", "f10",
+		"f11", "f12", "f13", "f14", "f15",
+		"f16", "f17", "f18", "f19", "f20",
+	}
+	for i, f := range filters {
+		if f != nil {
+			fmt.Fprintf(&sb, "\n  AND %s = $%d", fields[i], idx)
+			args = append(args, f)
+			idx++
+		}
+	}
+	sb.WriteString("\nORDER BY id ASC")
+	return sb.String(), args
+}
+
+func makeLargeArgs(setAll bool) []any {
+	args := make([]any, 21)
+	args[0] = "alice"
+	for i := 1; i <= 20; i++ {
+		if setAll {
+			v := fmt.Sprintf("val%d", i)
+			args[i] = &v
+		} else {
+			args[i] = (*string)(nil)
+		}
+	}
+	return args
+}
+
+func makeLargeFilters(setAll bool) [20]*string {
+	var filters [20]*string
+	if setAll {
+		for i := range filters {
+			v := fmt.Sprintf("val%d", i+1)
+			filters[i] = &v
+		}
+	}
+	return filters
+}
+
 func strPtr(v string) *string { return &v }
 
 func manualSearchUsers(name string, email, phone *string, ordersSince *time.Time, hasOrders bool) (string, []any) {
@@ -68,5 +147,38 @@ func BenchmarkDynamicSQL_AllOptional(b *testing.B) {
 func BenchmarkManual_AllOptional(b *testing.B) {
 	for b.Loop() {
 		manualSearchUsers("alice", benchEmail, benchPhone, benchTime, true)
+	}
+}
+
+// Large query benchmarks (20 optional conditions).
+
+var (
+	largeArgsNone = makeLargeArgs(false)
+	largeArgsAll  = makeLargeArgs(true)
+	largeFiltNone = makeLargeFilters(false)
+	largeFiltAll  = makeLargeFilters(true)
+)
+
+func BenchmarkDynamicSQL_Large_NoOptional(b *testing.B) {
+	for b.Loop() {
+		db.DynamicSQL(largeQuery, largeArgsNone)
+	}
+}
+
+func BenchmarkManual_Large_NoOptional(b *testing.B) {
+	for b.Loop() {
+		manualLargeSearch("alice", largeFiltNone)
+	}
+}
+
+func BenchmarkDynamicSQL_Large_AllOptional(b *testing.B) {
+	for b.Loop() {
+		db.DynamicSQL(largeQuery, largeArgsAll)
+	}
+}
+
+func BenchmarkManual_Large_AllOptional(b *testing.B) {
+	for b.Loop() {
+		manualLargeSearch("alice", largeFiltAll)
 	}
 }
