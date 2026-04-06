@@ -235,3 +235,96 @@ Running `go generate ./...` produces a mock per SQL file (with `emit_per_file_qu
 |---|---|
 | `users.sql.go` | `mock/users.sql.go` |
 | `orders.sql.go` | `mock/orders.sql.go` |
+
+---
+
+## Test Coverage
+
+### Plugin internals (`internal/`)
+
+Run with:
+
+```sh
+go test ./internal/... -coverprofile=coverage.out -covermode=atomic
+go tool cover -func=coverage.out
+```
+
+| Package | Coverage |
+|---|---|
+| `internal` | 66.0% |
+| `internal/opts` | 79.6% |
+| `internal/inflection` | 100.0% |
+| **Total** | **68.1%** |
+
+Key areas at 100%: `enum.go`, `field.go` (all case-style helpers), `inflection/singular.go`, `opts/enum.go` (driver/package validation), `opts/options.go ValidateOpts`, `reserved.go`, `struct.go`, `imports.go` (merge/sort/interface/copyfrom/batch).
+
+### Generated code (`example/test/`)
+
+Unit tests for the generated Go code — no database required. Covers `DynamicSQL` SQL-building logic, generated query SQL strings, and dynamic filter / ORDER BY combinations.
+
+```sh
+cd example
+go test ./test/... -v
+```
+
+**54 passing test cases** across:
+
+| Test | Sub-tests | What is covered |
+|---|---|---|
+| `TestDynamicSQL` | 23 | Placeholder remapping, gap handling, ORDER BY clauses, orphaned WHERE/GROUP BY/HAVING cleanup, EXISTS blocks |
+| `TestSearchUsers` | 7 | Optional email/phone/date filter combinations on generated search query |
+| `TestSearchUsersOrdered` | 3+ | ORDER BY flag combinations |
+| `TestSearchUsersByContact` | 4 | Multi-param optional filter |
+| `TestSearchUsersWithSameNameAndEmail` | 2 | Nil vs non-nil shared-column filter |
+| `TestSearchUsersOrderedByID` | 4 | ASC/DESC flag combinations with optional filters |
+| `TestGetUserWithLock` | 2 | `FOR UPDATE` / `FOR SHARE` SQL generation |
+
+---
+
+## Benchmarks
+
+Benchmarks compare three approaches for dynamic SQL construction (`emit_dynamic_filter`). Source: [`example/bench/`](example/bench/).
+
+```sh
+cd example
+go test ./bench -bench=. -benchmem -count=3 -run='^$'
+```
+
+Three strategies under test:
+
+| Strategy | Description |
+|---|---|
+| **DynamicSQL** | One-shot helper; parses the annotated SQL on every call |
+| **PreCompiled** | SQL parsed once at package init into a `dynCompiledQuery`; `Build()` called per request — no per-call scanning |
+| **Manual** | Hand-written `strings.Builder` with `fmt.Fprintf` per condition |
+
+### Small query (5 params, 4 optional)
+
+| Benchmark | ns/op | req/s | B/op | allocs/op |
+|---|---:|---:|---:|---:|
+| DynamicSQL — no optional | 2,285 | ~438 K | 3,688 | 46 |
+| **PreCompiled — no optional** | **180** | **~5.56 M** | **304** | **3** |
+| Manual — no optional | 138 | ~7.25 M | 368 | 5 |
+| DynamicSQL — all optional | 2,478 | ~403 K | 4,168 | 49 |
+| **PreCompiled — all optional** | **409** | **~2.44 M** | **784** | **6** |
+| Manual — all optional | 442 | ~2.26 M | 688 | 6 |
+
+### Large query (21 params, 20 optional)
+
+| Benchmark | ns/op | req/s | B/op | allocs/op |
+|---|---:|---:|---:|---:|
+| DynamicSQL — no optional | 5,375 | ~186 K | 7,472 | 119 |
+| **PreCompiled — no optional** | **226** | **~4.43 M** | **304** | **3** |
+| Manual — no optional | 198 | ~5.05 M | 640 | 5 |
+| DynamicSQL — all optional | 6,843 | ~146 K | 9,552 | 126 |
+| **PreCompiled — all optional** | **944** | **~1.06 M** | **2,384** | **10** |
+| Manual — all optional | 2,473 | ~404 K | 1,921 | 27 |
+
+Results on Intel Core i7-11800H @ 2.30GHz.
+
+### Takeaways
+
+- **PreCompiled is ~14–25× faster than `DynamicSQL`** and matches manual for the no-optional case.
+- **For the all-optional large query, PreCompiled is 2.3× faster than manual** — `Build` writes pre-split string literals directly vs `fmt.Fprintf` per condition.
+- **Allocations drop from 46–126 down to 3–10**, matching or beating manual.
+- A typical DB round-trip is ~1 ms; PreCompiled overhead is ~150–800 ns — effectively free in practice.
