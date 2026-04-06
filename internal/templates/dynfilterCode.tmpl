@@ -172,9 +172,15 @@ func dynExtractCondIdxs(line string) (condIdxs []int, cleaned string) {
 // dynSplitPlaceholders splits text at $N placeholder boundaries.
 // Returns parts (len = len(argNums)+1) and 1-based argNums.
 func dynSplitPlaceholders(text string) (parts []string, argNums []int) {
+	// Fast path: scan without a Builder when every '$' is followed by digits.
+	// Fall back to a Builder only when a bare '$' (not followed by a digit) is found.
+	var buf *strings.Builder
 	for {
 		i := strings.IndexByte(text, '$')
 		if i == -1 {
+			if buf != nil {
+				buf.WriteString(text)
+			}
 			break
 		}
 		j := i + 1
@@ -182,65 +188,85 @@ func dynSplitPlaceholders(text string) (parts []string, argNums []int) {
 			j++
 		}
 		if j == i+1 {
-			// '$' not followed by digit; keep scanning.
-			// Rare edge-case: just advance past the '$'.
-			i++
+			// '$' not followed by digit; switch to Builder to preserve the text.
+			if buf == nil {
+				buf = &strings.Builder{}
+			}
+			buf.WriteString(text[:i+1])
+			text = text[i+1:]
 			continue
 		}
 		n := dynParseInt(text[i+1:j], j-i-1)
 		if n <= 0 {
+			if buf != nil {
+				buf.WriteString(text[:j])
+			}
 			text = text[j:]
 			continue
 		}
-		parts = append(parts, text[:i])
+		if buf != nil {
+			buf.WriteString(text[:i])
+			parts = append(parts, buf.String())
+			buf.Reset()
+		} else {
+			parts = append(parts, text[:i])
+		}
 		argNums = append(argNums, n)
 		text = text[j:]
 	}
-	parts = append(parts, text)
+	if buf != nil {
+		parts = append(parts, buf.String())
+	} else {
+		parts = append(parts, text)
+	}
 	return parts, argNums
 }
 
-// dynFinalizeQuery strips a dangling trailing comma from the last non-empty
-// line and removes an orphaned ORDER BY (all its items were filtered out).
+// dynFinalizeQuery cleans up the output SQL after conditional lines have been
+// removed. It loops until stable, handling cascading cases such as:
+//   - trailing comma on the new last line  → strip the comma
+//   - orphaned clause keyword (WHERE, ORDER BY, GROUP BY, HAVING) → remove it
 func dynFinalizeQuery(query string) string {
-	// Find the end of the last non-empty line.
-	end := len(query)
-	for end > 0 && (query[end-1] == ' ' || query[end-1] == '\t' || query[end-1] == '\n') {
-		end--
-	}
-	if end == 0 {
-		return query
-	}
-	// Find start of last non-empty line.
-	start := end
-	for start > 0 && query[start-1] != '\n' {
-		start--
-	}
-	lastLine := query[start:end]
-	trimmed := strings.TrimSpace(lastLine)
-
-	// Strip trailing comma.
-	if len(trimmed) > 0 && trimmed[len(trimmed)-1] == ',' {
-		// Find the comma position in lastLine.
-		commaPos := strings.LastIndexByte(lastLine, ',')
-		if commaPos >= 0 {
-			query = query[:start+commaPos] + query[start+commaPos+1:]
+	for {
+		// Find the end of the last non-empty line.
+		end := len(query)
+		for end > 0 && (query[end-1] == ' ' || query[end-1] == '\t' || query[end-1] == '\n') {
 			end--
 		}
-		// Recalculate trimmed after removal.
-		lastLine = query[start:end]
-		trimmed = strings.TrimSpace(lastLine)
-	}
-
-	// Remove orphaned ORDER BY.
-	if strings.EqualFold(trimmed, "order by") {
-		newEnd := start
-		for newEnd > 0 && (query[newEnd-1] == '\n' || query[newEnd-1] == ' ' || query[newEnd-1] == '\t') {
-			newEnd--
+		if end == 0 {
+			return query
 		}
-		query = query[:newEnd]
-	}
+		// Find start of last non-empty line.
+		start := end
+		for start > 0 && query[start-1] != '\n' {
+			start--
+		}
+		trimmed := strings.TrimSpace(query[start:end])
 
+		// Strip trailing comma.
+		if len(trimmed) > 0 && trimmed[len(trimmed)-1] == ',' {
+			commaPos := strings.LastIndexByte(query[start:end], ',')
+			if commaPos >= 0 {
+				query = query[:start+commaPos] + query[start+commaPos+1:]
+			}
+			continue // re-evaluate after removal
+		}
+
+		// Remove orphaned SQL clause keywords.
+		if strings.EqualFold(trimmed, "ORDER BY") ||
+			strings.EqualFold(trimmed, "WHERE") ||
+			strings.EqualFold(trimmed, "GROUP BY") ||
+			strings.EqualFold(trimmed, "HAVING") {
+			newEnd := start
+			for newEnd > 0 && (query[newEnd-1] == '\n' || query[newEnd-1] == ' ' || query[newEnd-1] == '\t') {
+				newEnd--
+			}
+			query = query[:newEnd]
+			continue // re-evaluate after removal
+		}
+
+		break // nothing changed
+	}
 	return query
 }
 

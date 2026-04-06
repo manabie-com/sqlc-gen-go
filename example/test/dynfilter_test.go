@@ -135,4 +135,93 @@ func TestDynamicSQL(t *testing.T) {
 			t.Errorf("args len: got %d, want 1", len(args))
 		}
 	})
+
+	const orderByWithStaticLineQuery = "SELECT * FROM t\nWHERE a = $1\nORDER BY\n  id ASC, -- :if $2\n  name DESC, -- :if $3\n  created_at DESC"
+
+	t.Run("OrderBy/BlockExistWithStaticLine", func(t *testing.T) {
+		sql, args := db.DynamicSQL(orderByWithStaticLineQuery, []any{"x", false, false})
+		assertSQL(t, sql, "SELECT * FROM t\nWHERE a = $1\nORDER BY\n  created_at DESC")
+		if len(args) != 1 {
+			t.Errorf("args len: got %d, want 1", len(args))
+		}
+	})
+
+	t.Run("OrderBy/BlockExistFirstConditionalAndStatic", func(t *testing.T) {
+		sql, args := db.DynamicSQL(orderByWithStaticLineQuery, []any{"x", true, false})
+		assertSQL(t, sql, "SELECT * FROM t\nWHERE a = $1\nORDER BY\n  id ASC,\n  created_at DESC")
+		if len(args) != 1 {
+			t.Errorf("args len: got %d, want 1", len(args))
+		}
+	})
+
+	const existsQuery = "SELECT * FROM t\nWHERE a = $1\n  AND EXISTS ( -- :if $2\n    SELECT 1 -- :if $2\n    FROM other -- :if $2\n    WHERE id = $2 -- :if $2\n  ) -- :if $2"
+
+	t.Run("ExistsOperator", func(t *testing.T) {
+		var b *int
+		sql, args := db.DynamicSQL(existsQuery, []any{"x", b})
+		assertSQL(t, sql, "SELECT * FROM t\nWHERE a = $1")
+		if len(args) != 1 {
+			t.Errorf("args len: got %d, want 1", len(args))
+		}
+	})
+
+	t.Run("ExistsOperatorActive", func(t *testing.T) {
+		b := 100
+		sql, args := db.DynamicSQL(existsQuery, []any{"x", &b})
+		assertSQL(t, sql, "SELECT * FROM t\nWHERE a = $1\n  AND EXISTS (\n    SELECT 1\n    FROM other\n    WHERE id = $2\n  )")
+		if len(args) != 2 {
+			t.Errorf("args len: got %d, want 2", len(args))
+		}
+	})
+
+	t.Run("DollarWithoutDigit", func(t *testing.T) {
+		// Ensures no infinite loop when '$' appears without a trailing digit.
+		query := "SELECT * FROM t WHERE a = $1 AND b::text = $$hello$$"
+		sql, args := db.DynamicSQL(query, []any{"x"})
+		assertSQL(t, sql, "SELECT * FROM t WHERE a = $1 AND b::text = $$hello$$")
+		if len(args) != 1 {
+			t.Errorf("args len: got %d, want 1", len(args))
+		}
+	})
+
+	t.Run("OrphanedWHERE", func(t *testing.T) {
+		// All WHERE conditions are conditional → WHERE keyword must be removed.
+		query := "SELECT * FROM t\nWHERE\n  a = $1 -- :if $1\n  AND b = $2 -- :if $2"
+		var a, b *string
+		sql, args := db.DynamicSQL(query, []any{a, b})
+		assertSQL(t, sql, "SELECT * FROM t")
+		if len(args) != 0 {
+			t.Errorf("args len: got %d, want 0", len(args))
+		}
+	})
+
+	t.Run("CascadingWHEREAndOrderBy", func(t *testing.T) {
+		// All WHERE + all ORDER BY removed → both keywords must be cleaned.
+		query := "SELECT * FROM t\nWHERE\n  a = $1 -- :if $1\nORDER BY\n  id ASC -- :if $2"
+		var a *string
+		sql, args := db.DynamicSQL(query, []any{a, false})
+		assertSQL(t, sql, "SELECT * FROM t")
+		if len(args) != 0 {
+			t.Errorf("args len: got %d, want 0", len(args))
+		}
+	})
+
+	t.Run("OrphanedGROUPBY", func(t *testing.T) {
+		query := "SELECT * FROM t\nGROUP BY\n  a -- :if $1"
+		sql, args := db.DynamicSQL(query, []any{false})
+		assertSQL(t, sql, "SELECT * FROM t")
+		if len(args) != 0 {
+			t.Errorf("args len: got %d, want 0", len(args))
+		}
+	})
+
+	t.Run("OrphanedHAVING", func(t *testing.T) {
+		query := "SELECT * FROM t\nGROUP BY a\nHAVING\n  count(*) > $1 -- :if $1"
+		var c *int
+		sql, args := db.DynamicSQL(query, []any{c})
+		assertSQL(t, sql, "SELECT * FROM t\nGROUP BY a")
+		if len(args) != 0 {
+			t.Errorf("args len: got %d, want 0", len(args))
+		}
+	})
 }
