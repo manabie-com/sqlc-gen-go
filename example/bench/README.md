@@ -18,53 +18,29 @@ cd example
 go test ./bench -bench=. -benchmem -count=3 -run='^$'
 ```
 
-## Results (Apple M1 Pro)
-
-### Small query (5 params, 4 optional)
-
-| Benchmark                       | ns/op |    req/s | B/op  | allocs/op |
-|---------------------------------|------:|---------:|------:|----------:|
-| DynamicSQL — no optional        | 2,209 |   ~453 K | 3,688 |        46 |
-| **PreCompiled — no optional**   |   **151** | **~6.62 M** |  **304** |    **3** |
-| Manual — no optional            |   121 |  ~8.26 M |   368 |         5 |
-| DynamicSQL — all optional       | 2,400 |   ~417 K | 4,168 |        49 |
-| **PreCompiled — all optional**  |   **313** | **~3.19 M** |  **784** |    **6** |
-| Manual — all optional           |   379 |  ~2.64 M |   688 |         6 |
-
-### Large query (21 params, 20 optional)
-
-| Benchmark                       | ns/op |    req/s |  B/op | allocs/op |
-|---------------------------------|------:|---------:|------:|----------:|
-| DynamicSQL — no optional        | 5,344 |   ~187 K | 7,472 |       119 |
-| **PreCompiled — no optional**   |   **214** | **~4.67 M** |  **304** |    **3** |
-| Manual — no optional            |   177 |  ~5.65 M |   640 |         5 |
-| DynamicSQL — all optional       | 6,072 |   ~165 K | 9,552 |       126 |
-| **PreCompiled — all optional**  |   **817** | **~1.22 M** | **2,384** |  **10** |
-| Manual — all optional           | 1,919 |   ~521 K | 1,920 |        27 |
-
 ## Results (Intel Core i7-11800H @ 2.30GHz)
 
 ### Small query (5 params, 4 optional)
 
 | Benchmark                       | ns/op |    req/s | B/op  | allocs/op |
 |---------------------------------|------:|---------:|------:|----------:|
-| DynamicSQL — no optional        | 2,291 |   ~437 K | 3,688 |        46 |
-| **PreCompiled — no optional**   |   **175** | **~5.71 M** |  **304** |    **3** |
-| Manual — no optional            |   131 |  ~7.63 M |   368 |         5 |
-| DynamicSQL — all optional       | 2,521 |   ~397 K | 4,168 |        49 |
-| **PreCompiled — all optional**  |   **358** | **~2.79 M** |  **784** |    **6** |
-| Manual — all optional           |   437 |  ~2.29 M |   688 |         6 |
+| DynamicSQL — no optional        | 2,285 |   ~438 K | 3,688 |        46 |
+| **PreCompiled — no optional**   |   **180** | **~5.56 M** |  **304** |    **3** |
+| Manual — no optional            |   138 |  ~7.25 M |   368 |         5 |
+| DynamicSQL — all optional       | 2,478 |   ~403 K | 4,168 |        49 |
+| **PreCompiled — all optional**  |   **409** | **~2.44 M** |  **784** |    **6** |
+| Manual — all optional           |   442 |  ~2.26 M |   688 |         6 |
 
 ### Large query (21 params, 20 optional)
 
 | Benchmark                       | ns/op |    req/s |  B/op | allocs/op |
 |---------------------------------|------:|---------:|------:|----------:|
-| DynamicSQL — no optional        | 7,327 |   ~136 K | 7,472 |       119 |
-| **PreCompiled — no optional**   |   **226** | **~4.42 M** |  **304** |    **3** |
-| Manual — no optional            |   208 |  ~4.81 M |   640 |         5 |
-| DynamicSQL — all optional       | 6,501 |   ~154 K | 9,552 |       126 |
-| **PreCompiled — all optional**  |   **951** | **~1.05 M** | **2,384** |  **10** |
-| Manual — all optional           | 2,339 |   ~428 K | 1,921 |        27 |
+| DynamicSQL — no optional        | 5,375 |   ~186 K | 7,472 |       119 |
+| **PreCompiled — no optional**   |   **226** | **~4.43 M** |  **304** |    **3** |
+| Manual — no optional            |   198 |  ~5.05 M |   640 |         5 |
+| DynamicSQL — all optional       | 6,843 |   ~146 K | 9,552 |       126 |
+| **PreCompiled — all optional**  |   **944** | **~1.06 M** | **2,384** |  **10** |
+| Manual — all optional           | 2,473 |   ~404 K | 1,921 |        27 |
 
 ## How it works
 
