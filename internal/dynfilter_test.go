@@ -261,6 +261,48 @@ func TestParseDynFilter_BlockAnnotation(t *testing.T) {
 	}
 }
 
+func TestParseDynFilter_TopLevelBlockAnnotation(t *testing.T) {
+	// Top-level annotation (standalone -- :if @flag) followed by a line that
+	// opens a multi-line paren block. All interior lines should carry the
+	// same condition so the block is skipped atomically.
+	sql := "SELECT * FROM t\nWHERE a = $1\n-- :if @has_orders\n  AND EXISTS (\n    SELECT 1 FROM orders\n    WHERE orders.user_id = t.id\n  )"
+	params := []*plugin.Parameter{
+		makeParam("a", 1),
+		makeParam("has_orders", 2),
+	}
+	info, err := ParseDynFilter(sql, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info == nil {
+		t.Fatal("expected non-nil DynFilterInfo")
+	}
+
+	lines := strings.Split(info.AnnotatedSQL, "\n")
+	// The standalone :if $2 marker must still be present for dynCompile.
+	var hasBlockMarker bool
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "-- :if $2" {
+			hasBlockMarker = true
+		}
+	}
+	if !hasBlockMarker {
+		t.Errorf("expected standalone :if $2 marker in annotated SQL:\n%s", info.AnnotatedSQL)
+	}
+	// Every line inside the EXISTS block must also carry an inline annotation.
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		isBlockLine := strings.Contains(trimmed, "EXISTS") ||
+			strings.Contains(trimmed, "SELECT 1") ||
+			strings.Contains(trimmed, "orders.user_id") ||
+			trimmed == ")"
+		if isBlockLine && !strings.Contains(line, "-- :if $2") {
+			t.Errorf("expected '-- :if $2' on block line %q, got:\n%s", line, info.AnnotatedSQL)
+		}
+	}
+	t.Logf("AnnotatedSQL:\n%s", info.AnnotatedSQL)
+}
+
 func TestParseDynFilter_DollarPrefixAnnotation(t *testing.T) {
 	// The :if annotation accepts $name as well as @name.
 	sql := "SELECT * FROM t\nWHERE a = $1\n  AND b = $2 -- :if $b"

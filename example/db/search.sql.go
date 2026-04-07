@@ -300,6 +300,52 @@ func (q *SearchQueries) SearchUsersWithSameNameAndEmail(ctx context.Context, db 
 	return items, nil
 }
 
+const SearchUsersWithTopStyle = `-- name: SearchUsersWithTopStyle :many
+SELECT id, name, email, created_at, phone FROM users
+WHERE 1 = 1
+-- :if $1
+  AND ( -- :if $1
+    name = $1 -- :if $1
+    AND email = $1 -- :if $1
+  ) -- :if $1
+ORDER BY id ASC
+`
+
+var _searchUsersWithTopStyleDynQ = dynCompile(SearchUsersWithTopStyle)
+
+type SearchUsersWithTopStyleParams struct {
+	Name *string
+}
+
+func (q *SearchQueries) SearchUsersWithTopStyle(ctx context.Context, db DBTX, arg SearchUsersWithTopStyleParams) ([]*User, error) {
+	ctx, tracer := tracing.StartTracing(ctx, "SearchQueries.SearchUsersWithTopStyle")
+	defer tracer.End()
+	dynQuery, dynArgs := _searchUsersWithTopStyleDynQ.Build([]any{arg.Name})
+	rows, err := db.Query(ctx, dynQuery, dynArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Email,
+			&i.CreatedAt,
+			&i.Phone,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 type SearchQuerier interface {
 	SearchUsers(ctx context.Context, db DBTX, arg SearchUsersParams) ([]*User, error)
 	// Include the combined contact filter only when BOTH email AND phone are provided.
@@ -308,6 +354,7 @@ type SearchQuerier interface {
 	SearchUsersOrderedByID(ctx context.Context, db DBTX, arg SearchUsersOrderedByIDParams) ([]*User, error)
 	SearchUsersWithBlock(ctx context.Context, db DBTX, arg SearchUsersWithBlockParams) ([]*User, error)
 	SearchUsersWithSameNameAndEmail(ctx context.Context, db DBTX, arg SearchUsersWithSameNameAndEmailParams) ([]*User, error)
+	SearchUsersWithTopStyle(ctx context.Context, db DBTX, arg SearchUsersWithTopStyleParams) ([]*User, error)
 }
 
 var _ SearchQuerier = (*SearchQueries)(nil)

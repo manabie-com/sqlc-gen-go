@@ -51,3 +51,13 @@ WHERE 1 = 1
     AND email = @name
   )
 ORDER BY id ASC;
+
+-- name: SearchUsersWithTopStyle :many
+SELECT * FROM users
+WHERE 1 = 1
+  -- :if @name
+  AND (
+    name = @name
+    AND email = @name
+  )
+ORDER BY id ASC;

@@ -147,11 +147,13 @@ func ParseDynFilter(sql string, params []*plugin.Parameter) (*DynFilterInfo, err
 	// Second pass: rewrite the SQL, replacing -- :if @name... with -- :if $N...
 	var newLines []string
 	// blockSuffix is the annotation suffix to propagate to lines inside a
-	// multi-line paren block opened by an inline annotation; "" means inactive.
+	// multi-line paren block; "" means inactive.
+	// blockDepth tracks net open parens: when it drops to ≤ 0 the block ends.
 	blockSuffix := ""
 	blockDepth := 0
 
-	for _, line := range lines {
+	for i := 0; i < len(lines); i++ {
+		line := lines[i]
 		// Propagate annotation to lines inside an open paren block.
 		if blockSuffix != "" {
 			blockDepth += strings.Count(line, "(") - strings.Count(line, ")")
@@ -186,10 +188,21 @@ func ParseDynFilter(sql string, params []*plugin.Parameter) (*DynFilterInfo, err
 
 		prefix := strings.TrimSpace(line[:loc[0]])
 		if prefix == "" {
-			// Standalone block annotation: emit as first condition only
-			// (DynamicSQL skipNext handles one line; multi-param block-style
-			// is better expressed inline on each line).
+			// Standalone annotation: emit the :if $N marker so dynCompile's
+			// "skipNext" logic handles the immediately following line.
 			newLines = append(newLines, strings.TrimSpace(suffix))
+			// If the next line opens a paren block, also activate block
+			// propagation so every interior line gets the same condition.
+			// blockDepth starts at 0; the block propagation code will add the
+			// net paren depth of the next line on its first iteration.
+			if i+1 < len(lines) {
+				nextLine := lines[i+1]
+				nextDepth := strings.Count(nextLine, "(") - strings.Count(nextLine, ")")
+				if nextDepth > 0 {
+					blockSuffix = suffix
+					blockDepth = 0
+				}
+			}
 		} else {
 			// Inline annotation
 			content := strings.TrimRight(line[:loc[0]], " \t")

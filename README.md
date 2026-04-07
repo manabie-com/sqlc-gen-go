@@ -9,8 +9,8 @@ version: '2'
 plugins:
 - name: golang
   wasm:
-    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v2.2.0-stable/sqlc-gen-go.wasm
-    sha256: 447ca32453b74413af95298ebd2404d24707348e6de67886af8c807811d9d603
+    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v2.3.0-stable/sqlc-gen-go.wasm
+    sha256: 9b33820707e741e68ef49000189455ee4a3985a96a29e3e665d766709fdf5007
 sql:
 - schema: schema.sql
   queries: query.sql
@@ -62,8 +62,8 @@ sql:
 plugins:
 - name: golang
   wasm:
-    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v2.2.0-stable/sqlc-gen-go.wasm
-    sha256: 447ca32453b74413af95298ebd2404d24707348e6de67886af8c807811d9d603
+    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v2.3.0-stable/sqlc-gen-go.wasm
+    sha256: 9b33820707e741e68ef49000189455ee4a3985a96a29e3e665d766709fdf5007
 sql:
 - engine: postgresql
   codegen:
@@ -216,7 +216,8 @@ func (q *SearchQueries) SearchUsers(ctx context.Context, db DBTX, arg SearchUser
 | Inline | `AND col = @param -- :if @param` | Skip this line if param is nil/false |
 | Inline (multi-param) | `AND col = @param -- :if @a @b` | Skip this line if **any** listed param is nil/false |
 | Top-level | `-- :if @param` on its own line | Skip the **next** line if param is nil/false |
-| Block `( )` | `AND EXISTS ( -- :if @flag` | Skip the entire parenthesized block (until matching `)`) if flag is false/nil |
+| Top-level Block `( )` | `-- :if @flag` then `AND EXISTS (` on the next line | Skip the **next** line if param is nil/false; if that line opens a paren block, skip the **entire block** (until matching `)`) |
+| Inline Block `( )` | `AND EXISTS ( -- :if @flag` | Skip the entire parenthesized block (until matching `)`) if flag is false/nil |
 
 Two helpers are emitted into `dynfilter.go` in the output package:
 
