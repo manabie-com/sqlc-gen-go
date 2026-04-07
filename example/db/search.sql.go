@@ -215,24 +215,23 @@ func (q *SearchQueries) SearchUsersOrderedByID(ctx context.Context, db DBTX, arg
 const SearchUsersWithBlock = `-- name: SearchUsersWithBlock :many
 SELECT id, name, email, created_at, phone FROM users
 WHERE 1 = 1
-  AND ( -- :if $2
-    name = $1 -- :if $2
-    AND email = $1 -- :if $2
-  ) -- :if $2
+  AND ( -- :if $1
+    name = $1 -- :if $1
+    AND email = $1 -- :if $1
+  ) -- :if $1
 ORDER BY id ASC
 `
 
 var _searchUsersWithBlockDynQ = dynCompile(SearchUsersWithBlock)
 
 type SearchUsersWithBlockParams struct {
-	Name      string
-	BlockName bool
+	Name *string
 }
 
 func (q *SearchQueries) SearchUsersWithBlock(ctx context.Context, db DBTX, arg SearchUsersWithBlockParams) ([]*User, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "SearchQueries.SearchUsersWithBlock")
 	defer tracer.End()
-	dynQuery, dynArgs := _searchUsersWithBlockDynQ.Build([]any{arg.Name, arg.BlockName})
+	dynQuery, dynArgs := _searchUsersWithBlockDynQ.Build([]any{arg.Name})
 	rows, err := db.Query(ctx, dynQuery, dynArgs...)
 	if err != nil {
 		return nil, err

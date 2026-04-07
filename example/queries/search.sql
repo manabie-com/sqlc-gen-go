@@ -46,8 +46,8 @@ ORDER BY id ASC;
 -- name: SearchUsersWithBlock :many
 SELECT * FROM users
 WHERE 1 = 1
-  AND ( -- :if @block_name
-    name = @name 
+  AND ( -- :if @name
+    name = @name
     AND email = @name
   )
 ORDER BY id ASC;
