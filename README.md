@@ -262,10 +262,10 @@ go tool cover -func=coverage.out
 
 | Package | Coverage |
 |---|---|
-| `internal` | 66.0% |
-| `internal/opts` | 79.6% |
+| `internal` | 88.0% |
+| `internal/opts` | 89.4% |
 | `internal/inflection` | 100.0% |
-| **Total** | **68.1%** |
+| **Total** | **88.2%** |
 
 Key areas at 100%: `enum.go`, `field.go` (all case-style helpers), `inflection/singular.go`, `opts/enum.go` (driver/package validation), `opts/options.go ValidateOpts`, `reserved.go`, `struct.go`, `imports.go` (merge/sort/interface/copyfrom/batch).
 
@@ -278,15 +278,17 @@ cd example
 go test ./test/... -v
 ```
 
-**54 passing test cases** across:
+**51 passing test cases** across:
 
 | Test | Sub-tests | What is covered |
 |---|---|---|
-| `TestDynamicSQL` | 23 | Placeholder remapping, gap handling, ORDER BY clauses, orphaned WHERE/GROUP BY/HAVING cleanup, EXISTS blocks |
-| `TestSearchUsers` | 7 | Optional email/phone/date filter combinations on generated search query |
-| `TestSearchUsersOrdered` | 3+ | ORDER BY flag combinations |
+| `TestDynamicSQL` | 22 | Placeholder remapping, gap handling, ORDER BY clauses, orphaned WHERE/GROUP BY/HAVING cleanup, EXISTS blocks |
+| `TestSearchUsers` | 9 | Optional email/phone/date filter combinations on generated search query |
+| `TestSearchUsersOrdered` | 4 | ORDER BY flag combinations |
 | `TestSearchUsersByContact` | 4 | Multi-param optional filter |
 | `TestSearchUsersWithSameNameAndEmail` | 2 | Nil vs non-nil shared-column filter |
+| `TestSearchUsersWithBlock` | 2 | EXISTS block conditional inclusion |
+| `TestSearchUsersWithTopStyle` | 2 | Top-level `:if` annotation style |
 | `TestSearchUsersOrderedByID` | 4 | ASC/DESC flag combinations with optional filters |
 | `TestGetUserWithLock` | 2 | `FOR UPDATE` / `FOR SHARE` SQL generation |
 
