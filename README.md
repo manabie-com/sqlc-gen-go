@@ -211,13 +211,19 @@ func (q *SearchQueries) SearchUsers(ctx context.Context, db DBTX, arg SearchUser
 
 **Annotation rules**
 
-| Syntax | Behaviour |
-|---|---|
-| `AND col = @param -- :if @param` | Inline — skip line if param is nil/false |
-| `AND (a = @a AND b = @b) -- :if @a @b` | Multi-condition — skip if **any** param is inactive |
-| `-- :if @flag` (standalone) | Block — skip the **next** line if flag is false |
+| Style | Syntax | Behaviour |
+|---|---|---|
+| Inline | `AND col = @param -- :if @param` | Skip this line if param is nil/false |
+| Inline (multi-param) | `AND col = @param -- :if @a @b` | Skip this line if **any** listed param is nil/false |
+| Top-level | `-- :if @param` on its own line | Skip the **next** line if param is nil/false |
+| Block `( )` | `AND EXISTS ( -- :if @flag` | Skip the entire parenthesized block (until matching `)`) if flag is false/nil |
 
-A `DynamicSQL` helper is emitted into `dynfilter.go` in the output package. After filtering, remaining `$N` placeholders are renumbered sequentially and the args slice is trimmed to match, preventing "expected N arguments, got M" errors.
+Two helpers are emitted into `dynfilter.go` in the output package:
+
+- **`dynCompile(query)`** — default behavior; pre-compiles the annotated SQL once at package init into a `dynCompiledQuery`. Each generated query uses this via a package-level `var _..DynQ = dynCompile(...)`, then calls `.Build(args)` per request with no per-call scanning.
+- **`DynamicSQL(query, args)`** — one-shot helper; parses and filters on every call. Available for ad-hoc use.
+
+After filtering, remaining `$N` placeholders are renumbered sequentially and the args slice is trimmed to match, preventing "expected N arguments, got M" errors.
 
 ---
 
@@ -282,6 +288,23 @@ go test ./test/... -v
 | `TestSearchUsersWithSameNameAndEmail` | 2 | Nil vs non-nil shared-column filter |
 | `TestSearchUsersOrderedByID` | 4 | ASC/DESC flag combinations with optional filters |
 | `TestGetUserWithLock` | 2 | `FOR UPDATE` / `FOR SHARE` SQL generation |
+
+### End-to-end (`example/e2e/`)
+
+Integration tests that run queries against a real PostgreSQL database (`postgres://postgres:postgres@localhost:6432/sqlc-test`). Covers the same scenarios as the unit tests but validates actual query execution and result mapping.
+
+```sh
+make example-e2e
+```
+
+| Test | What is covered |
+|---|---|
+| `TestSearchUsers` | Optional email/phone/date filters against real rows |
+| `TestSearchUsersOrdered` | ORDER BY flag combinations |
+| `TestSearchUsersByContact` | Multi-param optional filter |
+| `TestSearchUsersWithSameNameAndEmail` | Nil vs non-nil shared-column filter |
+| `TestSearchUsersOrderedByID` | ASC/DESC flag combinations with optional filters |
+| `TestGetUserWithLock` | `FOR UPDATE` / `FOR SHARE` locking |
 
 ---
 

@@ -4,7 +4,8 @@ build:
 	go build ./...
 
 test: bin/sqlc-gen-go.wasm
-	go test ./...
+	go test ./internal/...
+	cd example && go test ./test/... -v
 
 all:
 	make bin/sqlc-gen-go

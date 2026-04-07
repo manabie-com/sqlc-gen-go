@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```sh
 make all          # Build both binary and WASM plugin (bin/sqlc-gen-go + bin/sqlc-gen-go.wasm)
 make build        # go build ./...
-make test         # Build WASM then run go test ./...
+make test         # Build WASM, then run go test ./internal/... and example/test/...
 
 # Run a single test
 go test ./internal/... -run TestName
@@ -16,7 +16,7 @@ go test ./internal/... -run TestName
 go test ./internal/opts/... -fuzz FuzzOverride
 ```
 
-The WASM build requires `GOOS=wasip1 GOARCH=wasm`. The `make test` target builds the WASM first because end-to-end tests depend on it.
+The WASM build requires `GOOS=wasip1 GOARCH=wasm`. The `make test` target builds the WASM first because integration tests depend on it. E2E tests against a real database live in `example/e2e/` and are run separately (`make example-e2e`).
 
 ## Architecture
 
@@ -50,7 +50,6 @@ Output files generated:
 | `internal/opts/` | Config parsing (`Options` struct), type override resolution |
 | `internal/templates/` | Go text/templates for each driver (`pgx/`, `stdlib/`, `go-sql-driver-mysql/`) |
 | `internal/inflection/` | Table name singularization for struct names |
-| `internal/endtoend/` | E2E test data and runner |
 
 ### Type system
 
@@ -73,7 +72,7 @@ Output files generated:
 **`emit_dynamic_filter`** — conditional WHERE/ORDER BY via `-- :if @param` annotations:
 - Params annotated with `:if` become pointer types (`*T`); `nil` skips the condition
 - Flag-only params (not SQL params) are added as `bool` fields
-- Runtime helper `DynamicSQL()` emitted into `dynfilter.go`
+- `dynCompile()` and `DynamicSQL()` helpers emitted into `dynfilter.go`; generated queries use `dynCompile` (pre-compiled) by default
 
 **`emit_tracing`** — injects custom tracing code into every query method via a Go template:
 ```yaml
