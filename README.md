@@ -168,9 +168,10 @@ options:
 SELECT * FROM users
 WHERE
   1 = 1
-  AND email = @email           -- :if @email        -- omit if email is nil
-  AND phone = @phone           -- :if @phone        -- omit if phone is nil
-  AND EXISTS (                 -- :if @has_orders   -- flag-only bool
+  AND email = @email           -- :if @email        -- omit this line if email is nil (inline style)
+  -- :if @phone                                     -- omit the next line if phone is nil (top-level style)
+  AND phone = @phone           
+  AND EXISTS (                 -- :if @has_orders   -- flag-only boolean; omit this block when false
     SELECT 1 FROM orders
     WHERE orders.user_id = users.id
       AND orders.created_at >= @orders_since  -- :if @orders_since
@@ -189,7 +190,10 @@ ORDER BY
 
 **Generated Go**
 
+For SearchUsers
 ```go
+var _searchUsersDynQ = dynCompile(SearchUsers)
+
 type SearchUsersParams struct {
     Email       *string    // nil → clause skipped
     Phone       *string    // nil → clause skipped
@@ -199,8 +203,8 @@ type SearchUsersParams struct {
 
 func (q *SearchQueries) SearchUsers(ctx context.Context, db DBTX, arg SearchUsersParams) ([]*User, error) {
 ...
-    dynQuery, dynArgs := DynamicSQL(SearchUsers, []any{arg.Email, arg.Phone, arg.OrdersSince, arg.HasOrders})
-    rows, err := db.Query(ctx, dynQuery, dynArgs...)
+  dynQuery, dynArgs := _searchUsersDynQ.Build([]any{arg.Email, arg.Phone, arg.OrdersSince, arg.HasOrders})
+	rows, err := db.Query(ctx, dynQuery, dynArgs...)
 ...
 }
 ```

@@ -1,7 +1,8 @@
 -- name: SearchUsers :many
 SELECT * FROM users
 WHERE name = @name
-  AND email = @email -- :if @email
+  -- :if @email
+  AND email = @email
   AND phone = @phone -- :if @phone
   AND EXISTS ( -- :if @has_orders
     SELECT 1 FROM orders
@@ -40,4 +41,13 @@ SELECT * FROM users
 WHERE 1 = 1
   AND name = @name -- :if @name
   AND email = @name -- :if @name
+ORDER BY id ASC;
+
+-- name: SearchUsersWithBlock :many
+SELECT * FROM users
+WHERE 1 = 1
+  AND ( -- :if @block_name
+    name = @name 
+    AND email = @name
+  )
 ORDER BY id ASC;
