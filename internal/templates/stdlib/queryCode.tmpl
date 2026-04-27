@@ -60,6 +60,11 @@ func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{ dbarg }} {{.A
 		{{- end}}
 	}
 	{{- end}}
+	{{- if $.WrapErrors}}
+	if err != nil {
+		err = fmt.Errorf("query {{.MethodName}}: %w", err)
+	}
+	{{- end}}
 	return {{.Ret.ReturnName}}, err
 }
 {{end}}
@@ -70,7 +75,7 @@ func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{ dbarg }} {{.A
 func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{ dbarg }} {{.Arg.Pair}}) ([]{{.Ret.DefineType}}, error) {
 {{tracingCode .MethodName}}    {{- template "queryCodeStdExec" . }}
     if err != nil {
-        return nil, err
+        return nil, {{if $.WrapErrors}}fmt.Errorf("query {{.MethodName}}: %w", err){{else}}err{{end}}
     }
     defer rows.Close()
     {{- if $.EmitEmptySlices}}
@@ -81,15 +86,15 @@ func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{ dbarg }} {{.A
     for rows.Next() {
         var {{.Ret.Name}} {{.Ret.Type}}
         if err := rows.Scan({{.Ret.Scan}}); err != nil {
-            return nil, err
+            return nil, {{if $.WrapErrors}}fmt.Errorf("query {{.MethodName}}: %w", err){{else}}err{{end}}
         }
         items = append(items, {{.Ret.ReturnName}})
     }
     if err := rows.Close(); err != nil {
-        return nil, err
+        return nil, {{if $.WrapErrors}}fmt.Errorf("query {{.MethodName}}: %w", err){{else}}err{{end}}
     }
     if err := rows.Err(); err != nil {
-        return nil, err
+        return nil, {{if $.WrapErrors}}fmt.Errorf("query {{.MethodName}}: %w", err){{else}}err{{end}}
     }
     return items, nil
 }
@@ -100,6 +105,11 @@ func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{ dbarg }} {{.A
 {{end -}}
 func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{ dbarg }} {{.Arg.Pair}}) error {
 {{tracingCode .MethodName}}    {{- template "queryCodeStdExec" . }}
+    {{- if $.WrapErrors}}
+    if err != nil {
+        err = fmt.Errorf("query {{.MethodName}}: %w", err)
+    }
+    {{- end}}
     return err
 }
 {{end}}
@@ -110,7 +120,7 @@ func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{ dbarg }} {{.A
 func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{ dbarg }} {{.Arg.Pair}}) (int64, error) {
 {{tracingCode .MethodName}}    {{- template "queryCodeStdExec" . }}
     if err != nil {
-        return 0, err
+        return 0, {{if $.WrapErrors}}fmt.Errorf("query {{.MethodName}}: %w", err){{else}}err{{end}}
     }
     return result.RowsAffected()
 }
@@ -122,7 +132,7 @@ func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{ dbarg }} {{.A
 func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{ dbarg }} {{.Arg.Pair}}) (int64, error) {
 {{tracingCode .MethodName}}    {{- template "queryCodeStdExec" . }}
     if err != nil {
-        return 0, err
+        return 0, {{if $.WrapErrors}}fmt.Errorf("query {{.MethodName}}: %w", err){{else}}err{{end}}
     }
     return result.LastInsertId()
 }
@@ -133,6 +143,12 @@ func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{ dbarg }} {{.A
 {{end -}}
 func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{ dbarg }} {{.Arg.Pair}}) (sql.Result, error) {
 {{tracingCode .MethodName}}    {{- template "queryCodeStdExec" . }}
+    {{- if $.WrapErrors}}
+    if err != nil {
+        err = fmt.Errorf("query {{.MethodName}}: %w", err)
+    }
+    return result, err
+    {{- end}}
 }
 {{end}}
 
