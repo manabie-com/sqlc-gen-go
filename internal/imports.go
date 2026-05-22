@@ -434,6 +434,10 @@ func (i *importer) queryImports(filename string) fileImports {
 		}
 	}
 
+	if i.Options.WrapErrors {
+		std["fmt"] = struct{}{}
+	}
+
 	return sortedImports(std, pkg)
 }
 
