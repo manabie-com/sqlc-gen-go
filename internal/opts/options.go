@@ -49,6 +49,9 @@ type Options struct {
 	EmitTracing                 *TracingOptions   `json:"emit_tracing,omitempty" yaml:"emit_tracing"`
 	GoGenerateMock              string            `json:"go_generate_mock,omitempty" yaml:"go_generate_mock"`
 	EmitDynamicFilter           bool              `json:"emit_dynamic_filter,omitempty" yaml:"emit_dynamic_filter"`
+	WrapErrors                  bool              `json:"wrap_errors,omitempty" yaml:"wrap_errors"`
+	// nil inherits EmitPointersForNullTypes; non-nil overrides for enums only.
+	EmitPointersForNullEnumTypes *bool `json:"emit_pointers_for_null_enum_types,omitempty" yaml:"emit_pointers_for_null_enum_types"`
 
 	InitialismsMap map[string]struct{} `json:"-" yaml:"-"`
 }
