@@ -9,7 +9,8 @@ import (
 	"time"
 
 	"example/db"
-	"github.com/jackc/pgx/v4"
+
+	"github.com/jackc/pgx/v5"
 )
 
 const DSN = "postgres://postgres:postgres@localhost:6432/sqlc-test?sslmode=disable"
