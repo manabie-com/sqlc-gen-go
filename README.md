@@ -228,6 +228,25 @@ After filtering, remaining `$N` placeholders are renumbered sequentially and the
 
 ---
 
+### `disable_result_slice_pointers`
+
+When `emit_result_struct_pointers: true` is set, `:many` queries return `[]*T` by default. Setting `disable_result_slice_pointers: true` keeps `:one` results as `*T` while changing `:many` results back to `[]T`.
+
+Requires `emit_result_struct_pointers: true`.
+
+```yaml
+options:
+  emit_result_struct_pointers: true
+  disable_result_slice_pointers: true
+```
+
+| Query command | `emit_result_struct_pointers` only | + `disable_result_slice_pointers` |
+|---|---|---|
+| `:one` | `*MyRow` | `*MyRow` |
+| `:many` | `[]*MyRow` | `[]MyRow` |
+
+---
+
 ### `go_generate_mock`
 
 Adds a `//go:generate` directive for mock generation. `$GOFILE` expands to the current filename at generate time.

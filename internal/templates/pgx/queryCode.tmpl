@@ -88,13 +88,13 @@ func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{.Arg.Pair}}) (
 {{range .Comments}}//{{.}}
 {{end -}}
 {{- if $.EmitMethodsWithDBArgument -}}
-func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, db DBTX, {{.Arg.Pair}}) ([]{{.Ret.DefineType}}, error) {
+func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, db DBTX, {{.Arg.Pair}}) ([]{{.Ret.SliceType}}, error) {
 {{tracingCode .MethodName}}{{- if .HasDynFilter}}	dynQuery, dynArgs := {{.DynQueryVar}}.Build([]any{ {{.DynFilterArgs}} })
 	rows, err := db.Query(ctx, dynQuery, dynArgs...)
 {{- else}}	rows, err := db.Query(ctx, {{.ConstantName}}, {{.Arg.Params}})
 {{- end}}
 {{- else -}}
-func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{.Arg.Pair}}) ([]{{.Ret.DefineType}}, error) {
+func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{.Arg.Pair}}) ([]{{.Ret.SliceType}}, error) {
 {{tracingCode .MethodName}}{{- if .HasDynFilter}}	dynQuery, dynArgs := {{.DynQueryVar}}.Build([]any{ {{.DynFilterArgs}} })
 	rows, err := q.db.Query(ctx, dynQuery, dynArgs...)
 {{- else}}	rows, err := q.db.Query(ctx, {{.ConstantName}}, {{.Arg.Params}})
@@ -105,16 +105,16 @@ func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{.Arg.Pair}}) (
 	}
 	defer rows.Close()
 	{{- if $.EmitEmptySlices}}
-	items := []{{.Ret.DefineType}}{}
+	items := []{{.Ret.SliceType}}{}
 	{{else}}
-	var items []{{.Ret.DefineType}}
+	var items []{{.Ret.SliceType}}
 	{{end -}}
 	for rows.Next() {
 		var {{.Ret.Name}} {{.Ret.Type}}
 		if err := rows.Scan({{.Ret.Scan}}); err != nil {
 			return nil, {{if $.WrapErrors}}fmt.Errorf("query {{.MethodName}}: %w", err){{else}}err{{end}}
 		}
-		items = append(items, {{.Ret.ReturnName}})
+		items = append(items, {{.Ret.SliceReturnName}})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, {{if $.WrapErrors}}fmt.Errorf("query {{.MethodName}}: %w", err){{else}}err{{end}}

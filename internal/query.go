@@ -18,6 +18,11 @@ type QueryValue struct {
 	Typ         string
 	SQLDriver   opts.SQLDriver
 
+	// DisableSlicePointer, when true, keeps the element type of returned
+	// slices (:many / :batchmany) a value type even though EmitPointer is set.
+	// It does not affect single-row (:one / :batchone) results.
+	DisableSlicePointer bool
+
 	// Column is kept so late in the generation process around to differentiate
 	// between mysql slices and pg arrays
 	Column *plugin.Column
@@ -103,6 +108,32 @@ func (v *QueryValue) DefineType() string {
 
 func (v *QueryValue) ReturnName() string {
 	if v.IsPointer() {
+		return "&" + escape(v.Name)
+	}
+	return escape(v.Name)
+}
+
+// IsSlicePointer reports whether the element type of a returned slice
+// (:many / :batchmany) should be a pointer. It mirrors IsPointer unless
+// DisableSlicePointer turns slice pointers off.
+func (v QueryValue) IsSlicePointer() bool {
+	return v.IsPointer() && !v.DisableSlicePointer
+}
+
+// SliceType returns the element type used inside returned slices. It is like
+// DefineType but honors DisableSlicePointer.
+func (v *QueryValue) SliceType() string {
+	t := v.Type()
+	if v.IsSlicePointer() {
+		return "*" + t
+	}
+	return t
+}
+
+// SliceReturnName returns the value appended to a result slice. It is like
+// ReturnName but honors DisableSlicePointer.
+func (v *QueryValue) SliceReturnName() string {
+	if v.IsSlicePointer() {
 		return "&" + escape(v.Name)
 	}
 	return escape(v.Name)

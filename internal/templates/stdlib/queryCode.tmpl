@@ -72,23 +72,23 @@ func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{ dbarg }} {{.A
 {{if eq .Cmd ":many"}}
 {{range .Comments}}//{{.}}
 {{end -}}
-func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{ dbarg }} {{.Arg.Pair}}) ([]{{.Ret.DefineType}}, error) {
+func (q *{{$.StructName}}) {{.MethodName}}(ctx context.Context, {{ dbarg }} {{.Arg.Pair}}) ([]{{.Ret.SliceType}}, error) {
 {{tracingCode .MethodName}}    {{- template "queryCodeStdExec" . }}
     if err != nil {
         return nil, {{if $.WrapErrors}}fmt.Errorf("query {{.MethodName}}: %w", err){{else}}err{{end}}
     }
     defer rows.Close()
     {{- if $.EmitEmptySlices}}
-    items := []{{.Ret.DefineType}}{}
+    items := []{{.Ret.SliceType}}{}
     {{else}}
-    var items []{{.Ret.DefineType}}
+    var items []{{.Ret.SliceType}}
     {{end -}}
     for rows.Next() {
         var {{.Ret.Name}} {{.Ret.Type}}
         if err := rows.Scan({{.Ret.Scan}}); err != nil {
             return nil, {{if $.WrapErrors}}fmt.Errorf("query {{.MethodName}}: %w", err){{else}}err{{end}}
         }
-        items = append(items, {{.Ret.ReturnName}})
+        items = append(items, {{.Ret.SliceReturnName}})
     }
     if err := rows.Close(); err != nil {
         return nil, {{if $.WrapErrors}}fmt.Errorf("query {{.MethodName}}: %w", err){{else}}err{{end}}

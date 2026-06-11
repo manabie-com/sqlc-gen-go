@@ -43,7 +43,7 @@ type SearchUsersParams struct {
 	HasOrders   bool
 }
 
-func (q *SearchQueries) SearchUsers(ctx context.Context, db DBTX, arg SearchUsersParams) ([]*User, error) {
+func (q *SearchQueries) SearchUsers(ctx context.Context, db DBTX, arg SearchUsersParams) ([]User, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "SearchQueries.SearchUsers")
 	defer tracer.End()
 	dynQuery, dynArgs := _searchUsersDynQ.Build([]any{arg.Name, arg.Email, arg.Phone, arg.OrdersSince, arg.HasOrders})
@@ -52,7 +52,7 @@ func (q *SearchQueries) SearchUsers(ctx context.Context, db DBTX, arg SearchUser
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*User{}
+	var items []User
 	for rows.Next() {
 		var i User
 		if err := rows.Scan(
@@ -64,7 +64,7 @@ func (q *SearchQueries) SearchUsers(ctx context.Context, db DBTX, arg SearchUser
 		); err != nil {
 			return nil, err
 		}
-		items = append(items, &i)
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -88,7 +88,7 @@ type SearchUsersByContactParams struct {
 }
 
 // Include the combined contact filter only when BOTH email AND phone are provided.
-func (q *SearchQueries) SearchUsersByContact(ctx context.Context, db DBTX, arg SearchUsersByContactParams) ([]*User, error) {
+func (q *SearchQueries) SearchUsersByContact(ctx context.Context, db DBTX, arg SearchUsersByContactParams) ([]User, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "SearchQueries.SearchUsersByContact")
 	defer tracer.End()
 	dynQuery, dynArgs := _searchUsersByContactDynQ.Build([]any{arg.Name, arg.Email, arg.Phone})
@@ -97,7 +97,7 @@ func (q *SearchQueries) SearchUsersByContact(ctx context.Context, db DBTX, arg S
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*User{}
+	var items []User
 	for rows.Next() {
 		var i User
 		if err := rows.Scan(
@@ -109,7 +109,7 @@ func (q *SearchQueries) SearchUsersByContact(ctx context.Context, db DBTX, arg S
 		); err != nil {
 			return nil, err
 		}
-		items = append(items, &i)
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -136,7 +136,7 @@ type SearchUsersOrderedParams struct {
 	OrderNameAsc       bool
 }
 
-func (q *SearchQueries) SearchUsersOrdered(ctx context.Context, db DBTX, arg SearchUsersOrderedParams) ([]*User, error) {
+func (q *SearchQueries) SearchUsersOrdered(ctx context.Context, db DBTX, arg SearchUsersOrderedParams) ([]User, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "SearchQueries.SearchUsersOrdered")
 	defer tracer.End()
 	dynQuery, dynArgs := _searchUsersOrderedDynQ.Build([]any{arg.Name, arg.Email, arg.OrderCreatedAtDesc, arg.OrderNameAsc})
@@ -145,7 +145,7 @@ func (q *SearchQueries) SearchUsersOrdered(ctx context.Context, db DBTX, arg Sea
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*User{}
+	var items []User
 	for rows.Next() {
 		var i User
 		if err := rows.Scan(
@@ -157,7 +157,7 @@ func (q *SearchQueries) SearchUsersOrdered(ctx context.Context, db DBTX, arg Sea
 		); err != nil {
 			return nil, err
 		}
-		items = append(items, &i)
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -183,7 +183,7 @@ type SearchUsersOrderedByIDParams struct {
 	IdDesc bool
 }
 
-func (q *SearchQueries) SearchUsersOrderedByID(ctx context.Context, db DBTX, arg SearchUsersOrderedByIDParams) ([]*User, error) {
+func (q *SearchQueries) SearchUsersOrderedByID(ctx context.Context, db DBTX, arg SearchUsersOrderedByIDParams) ([]User, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "SearchQueries.SearchUsersOrderedByID")
 	defer tracer.End()
 	dynQuery, dynArgs := _searchUsersOrderedByIDDynQ.Build([]any{arg.Name, arg.Email, arg.IdAsc, arg.IdDesc})
@@ -192,7 +192,7 @@ func (q *SearchQueries) SearchUsersOrderedByID(ctx context.Context, db DBTX, arg
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*User{}
+	var items []User
 	for rows.Next() {
 		var i User
 		if err := rows.Scan(
@@ -204,7 +204,7 @@ func (q *SearchQueries) SearchUsersOrderedByID(ctx context.Context, db DBTX, arg
 		); err != nil {
 			return nil, err
 		}
-		items = append(items, &i)
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -228,7 +228,7 @@ type SearchUsersWithBlockParams struct {
 	Name *string
 }
 
-func (q *SearchQueries) SearchUsersWithBlock(ctx context.Context, db DBTX, arg SearchUsersWithBlockParams) ([]*User, error) {
+func (q *SearchQueries) SearchUsersWithBlock(ctx context.Context, db DBTX, arg SearchUsersWithBlockParams) ([]User, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "SearchQueries.SearchUsersWithBlock")
 	defer tracer.End()
 	dynQuery, dynArgs := _searchUsersWithBlockDynQ.Build([]any{arg.Name})
@@ -237,7 +237,7 @@ func (q *SearchQueries) SearchUsersWithBlock(ctx context.Context, db DBTX, arg S
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*User{}
+	var items []User
 	for rows.Next() {
 		var i User
 		if err := rows.Scan(
@@ -249,7 +249,7 @@ func (q *SearchQueries) SearchUsersWithBlock(ctx context.Context, db DBTX, arg S
 		); err != nil {
 			return nil, err
 		}
-		items = append(items, &i)
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -271,7 +271,7 @@ type SearchUsersWithSameNameAndEmailParams struct {
 	Name *string
 }
 
-func (q *SearchQueries) SearchUsersWithSameNameAndEmail(ctx context.Context, db DBTX, arg SearchUsersWithSameNameAndEmailParams) ([]*User, error) {
+func (q *SearchQueries) SearchUsersWithSameNameAndEmail(ctx context.Context, db DBTX, arg SearchUsersWithSameNameAndEmailParams) ([]User, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "SearchQueries.SearchUsersWithSameNameAndEmail")
 	defer tracer.End()
 	dynQuery, dynArgs := _searchUsersWithSameNameAndEmailDynQ.Build([]any{arg.Name})
@@ -280,7 +280,7 @@ func (q *SearchQueries) SearchUsersWithSameNameAndEmail(ctx context.Context, db 
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*User{}
+	var items []User
 	for rows.Next() {
 		var i User
 		if err := rows.Scan(
@@ -292,7 +292,7 @@ func (q *SearchQueries) SearchUsersWithSameNameAndEmail(ctx context.Context, db 
 		); err != nil {
 			return nil, err
 		}
-		items = append(items, &i)
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -317,7 +317,7 @@ type SearchUsersWithTopStyleParams struct {
 	Name *string
 }
 
-func (q *SearchQueries) SearchUsersWithTopStyle(ctx context.Context, db DBTX, arg SearchUsersWithTopStyleParams) ([]*User, error) {
+func (q *SearchQueries) SearchUsersWithTopStyle(ctx context.Context, db DBTX, arg SearchUsersWithTopStyleParams) ([]User, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "SearchQueries.SearchUsersWithTopStyle")
 	defer tracer.End()
 	dynQuery, dynArgs := _searchUsersWithTopStyleDynQ.Build([]any{arg.Name})
@@ -326,7 +326,7 @@ func (q *SearchQueries) SearchUsersWithTopStyle(ctx context.Context, db DBTX, ar
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*User{}
+	var items []User
 	for rows.Next() {
 		var i User
 		if err := rows.Scan(
@@ -338,7 +338,7 @@ func (q *SearchQueries) SearchUsersWithTopStyle(ctx context.Context, db DBTX, ar
 		); err != nil {
 			return nil, err
 		}
-		items = append(items, &i)
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -347,14 +347,14 @@ func (q *SearchQueries) SearchUsersWithTopStyle(ctx context.Context, db DBTX, ar
 }
 
 type SearchQuerier interface {
-	SearchUsers(ctx context.Context, db DBTX, arg SearchUsersParams) ([]*User, error)
+	SearchUsers(ctx context.Context, db DBTX, arg SearchUsersParams) ([]User, error)
 	// Include the combined contact filter only when BOTH email AND phone are provided.
-	SearchUsersByContact(ctx context.Context, db DBTX, arg SearchUsersByContactParams) ([]*User, error)
-	SearchUsersOrdered(ctx context.Context, db DBTX, arg SearchUsersOrderedParams) ([]*User, error)
-	SearchUsersOrderedByID(ctx context.Context, db DBTX, arg SearchUsersOrderedByIDParams) ([]*User, error)
-	SearchUsersWithBlock(ctx context.Context, db DBTX, arg SearchUsersWithBlockParams) ([]*User, error)
-	SearchUsersWithSameNameAndEmail(ctx context.Context, db DBTX, arg SearchUsersWithSameNameAndEmailParams) ([]*User, error)
-	SearchUsersWithTopStyle(ctx context.Context, db DBTX, arg SearchUsersWithTopStyleParams) ([]*User, error)
+	SearchUsersByContact(ctx context.Context, db DBTX, arg SearchUsersByContactParams) ([]User, error)
+	SearchUsersOrdered(ctx context.Context, db DBTX, arg SearchUsersOrderedParams) ([]User, error)
+	SearchUsersOrderedByID(ctx context.Context, db DBTX, arg SearchUsersOrderedByIDParams) ([]User, error)
+	SearchUsersWithBlock(ctx context.Context, db DBTX, arg SearchUsersWithBlockParams) ([]User, error)
+	SearchUsersWithSameNameAndEmail(ctx context.Context, db DBTX, arg SearchUsersWithSameNameAndEmailParams) ([]User, error)
+	SearchUsersWithTopStyle(ctx context.Context, db DBTX, arg SearchUsersWithTopStyleParams) ([]User, error)
 }
 
 var _ SearchQuerier = (*SearchQueries)(nil)
