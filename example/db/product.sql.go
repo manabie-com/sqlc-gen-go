@@ -129,7 +129,7 @@ const ListProducts = `-- name: ListProducts :many
 SELECT id, name, price, stock, created_at FROM products ORDER BY created_at DESC
 `
 
-func (q *ProductQueries) ListProducts(ctx context.Context, db DBTX) ([]*Product, error) {
+func (q *ProductQueries) ListProducts(ctx context.Context, db DBTX) ([]Product, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "ProductQueries.ListProducts")
 	defer tracer.End()
 	rows, err := db.Query(ctx, ListProducts)
@@ -137,7 +137,7 @@ func (q *ProductQueries) ListProducts(ctx context.Context, db DBTX) ([]*Product,
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*Product{}
+	var items []Product
 	for rows.Next() {
 		var i Product
 		if err := rows.Scan(
@@ -149,7 +149,7 @@ func (q *ProductQueries) ListProducts(ctx context.Context, db DBTX) ([]*Product,
 		); err != nil {
 			return nil, err
 		}
-		items = append(items, &i)
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -179,7 +179,7 @@ type ProductQuerier interface {
 	GetProduct(ctx context.Context, db DBTX, arg GetProductParams) (*Product, error)
 	GetProductPrice(ctx context.Context, db DBTX, arg GetProductPriceParams) (decimal.Decimal, error)
 	GetProductsInStock(ctx context.Context, db DBTX) (*int32, error)
-	ListProducts(ctx context.Context, db DBTX) ([]*Product, error)
+	ListProducts(ctx context.Context, db DBTX) ([]Product, error)
 	UpdateProductStock(ctx context.Context, db DBTX, arg UpdateProductStockParams) error
 }
 

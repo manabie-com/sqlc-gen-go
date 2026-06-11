@@ -95,7 +95,7 @@ type ListUsersParams struct {
 	Names []string
 }
 
-func (q *UsersQueries) ListUsers(ctx context.Context, db DBTX, arg ListUsersParams) ([]*User, error) {
+func (q *UsersQueries) ListUsers(ctx context.Context, db DBTX, arg ListUsersParams) ([]User, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "UsersQueries.ListUsers")
 	defer tracer.End()
 	rows, err := db.Query(ctx, ListUsers, arg.Names)
@@ -103,7 +103,7 @@ func (q *UsersQueries) ListUsers(ctx context.Context, db DBTX, arg ListUsersPara
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*User{}
+	var items []User
 	for rows.Next() {
 		var i User
 		if err := rows.Scan(
@@ -115,7 +115,7 @@ func (q *UsersQueries) ListUsers(ctx context.Context, db DBTX, arg ListUsersPara
 		); err != nil {
 			return nil, err
 		}
-		items = append(items, &i)
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -155,7 +155,7 @@ type UsersQuerier interface {
 	CreateUser(ctx context.Context, db DBTX, arg CreateUserParams) (*User, error)
 	DeleteUser(ctx context.Context, db DBTX, arg DeleteUserParams) error
 	GetUser(ctx context.Context, db DBTX, arg GetUserParams) (*User, error)
-	ListUsers(ctx context.Context, db DBTX, arg ListUsersParams) ([]*User, error)
+	ListUsers(ctx context.Context, db DBTX, arg ListUsersParams) ([]User, error)
 	UpdateUser(ctx context.Context, db DBTX, arg UpdateUserParams) (*User, error)
 }
 

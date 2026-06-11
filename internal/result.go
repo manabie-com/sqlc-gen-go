@@ -338,6 +338,8 @@ func buildQueries(req *plugin.GenerateRequest, options *opts.Options, structs []
 				Struct:      gs,
 				SQLDriver:   sqlpkg,
 				EmitPointer: options.EmitResultStructPointers,
+
+				DisableSlicePointer: options.DisableResultSlicePointers,
 			}
 		}
 

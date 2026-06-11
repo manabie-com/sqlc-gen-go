@@ -117,10 +117,10 @@ func (mr *MockProductQuerierMockRecorder) GetProductsInStock(ctx, arg1 any) *gom
 }
 
 // ListProducts mocks base method.
-func (m *MockProductQuerier) ListProducts(ctx context.Context, arg1 db.DBTX) ([]*db.Product, error) {
+func (m *MockProductQuerier) ListProducts(ctx context.Context, arg1 db.DBTX) ([]db.Product, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListProducts", ctx, arg1)
-	ret0, _ := ret[0].([]*db.Product)
+	ret0, _ := ret[0].([]db.Product)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

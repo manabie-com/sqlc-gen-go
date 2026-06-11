@@ -133,6 +133,10 @@ func TestValidateOpts_MutuallyExclusive(t *testing.T) {
 			"emit_dynamic_filter + emit_prepared_queries",
 			&Options{EmitDynamicFilter: true, EmitPreparedQueries: true, QueryParameterLimit: &limit},
 		},
+		{
+			"disable_result_slice_pointers without emit_result_struct_pointers",
+			&Options{DisableResultSlicePointers: true, QueryParameterLimit: &limit},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -154,6 +158,18 @@ func TestValidateOpts_NegativeQueryParameterLimit(t *testing.T) {
 func TestValidateOpts_Valid(t *testing.T) {
 	limit := int32(1)
 	err := ValidateOpts(&Options{QueryParameterLimit: &limit})
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateOpts_DisableResultSlicePointersWithEmit(t *testing.T) {
+	limit := int32(1)
+	err := ValidateOpts(&Options{
+		EmitResultStructPointers:   true,
+		DisableResultSlicePointers: true,
+		QueryParameterLimit:        &limit,
+	})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}

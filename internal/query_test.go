@@ -159,6 +159,51 @@ func TestQueryValue_DefineType(t *testing.T) {
 	}
 }
 
+func TestQueryValue_SlicePointer(t *testing.T) {
+	s := &Struct{Name: "Item"}
+
+	// EmitPointer without DisableSlicePointer: slice elements are pointers,
+	// matching DefineType/ReturnName.
+	ptr := QueryValue{EmitPointer: true, Struct: s, Name: "i"}
+	if !ptr.IsSlicePointer() {
+		t.Error("expected IsSlicePointer() = true when EmitPointer set and slice pointers not disabled")
+	}
+	if got := ptr.SliceType(); got != "*Item" {
+		t.Errorf("expected *Item, got %q", got)
+	}
+	if got := ptr.SliceReturnName(); got != "&i" {
+		t.Errorf("expected &i, got %q", got)
+	}
+
+	// DisableSlicePointer keeps slice elements as values, while the single-row
+	// DefineType/ReturnName stay pointers.
+	noSlice := QueryValue{EmitPointer: true, DisableSlicePointer: true, Struct: s, Name: "i"}
+	if noSlice.IsSlicePointer() {
+		t.Error("expected IsSlicePointer() = false when DisableSlicePointer set")
+	}
+	if got := noSlice.SliceType(); got != "Item" {
+		t.Errorf("expected Item, got %q", got)
+	}
+	if got := noSlice.SliceReturnName(); got != "i" {
+		t.Errorf("expected i, got %q", got)
+	}
+	if got := noSlice.DefineType(); got != "*Item" {
+		t.Errorf("expected DefineType to stay *Item, got %q", got)
+	}
+	if got := noSlice.ReturnName(); got != "&i" {
+		t.Errorf("expected ReturnName to stay &i, got %q", got)
+	}
+
+	// Without EmitPointer, DisableSlicePointer is a no-op.
+	plain := QueryValue{DisableSlicePointer: true, Struct: s, Name: "i"}
+	if plain.IsSlicePointer() {
+		t.Error("expected IsSlicePointer() = false when EmitPointer unset")
+	}
+	if got := plain.SliceType(); got != "Item" {
+		t.Errorf("expected Item, got %q", got)
+	}
+}
+
 func TestQueryValue_ColumnNamesAsGoSlice(t *testing.T) {
 	// nil struct: uses DBName
 	v := QueryValue{DBName: "user_id"}

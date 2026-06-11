@@ -112,7 +112,7 @@ type ListOrdersByUserParams struct {
 	UserID int64
 }
 
-func (q *OrdersQueries) ListOrdersByUser(ctx context.Context, db DBTX, arg ListOrdersByUserParams) ([]*Order, error) {
+func (q *OrdersQueries) ListOrdersByUser(ctx context.Context, db DBTX, arg ListOrdersByUserParams) ([]Order, error) {
 	ctx, tracer := tracing.StartTracing(ctx, "OrdersQueries.ListOrdersByUser")
 	defer tracer.End()
 	rows, err := db.Query(ctx, ListOrdersByUser, arg.UserID)
@@ -120,7 +120,7 @@ func (q *OrdersQueries) ListOrdersByUser(ctx context.Context, db DBTX, arg ListO
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*Order{}
+	var items []Order
 	for rows.Next() {
 		var i Order
 		if err := rows.Scan(
@@ -132,7 +132,7 @@ func (q *OrdersQueries) ListOrdersByUser(ctx context.Context, db DBTX, arg ListO
 		); err != nil {
 			return nil, err
 		}
-		items = append(items, &i)
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -160,7 +160,7 @@ type OrdersQuerier interface {
 	CreateOrder(ctx context.Context, db DBTX, arg CreateOrderParams) (*Order, error)
 	GetOrder(ctx context.Context, db DBTX, arg GetOrderParams) (*Order, error)
 	GetUserOrderSummary(ctx context.Context, db DBTX, arg GetUserOrderSummaryParams) (*GetUserOrderSummaryRow, error)
-	ListOrdersByUser(ctx context.Context, db DBTX, arg ListOrdersByUserParams) ([]*Order, error)
+	ListOrdersByUser(ctx context.Context, db DBTX, arg ListOrdersByUserParams) ([]Order, error)
 	UpdateOrderStatus(ctx context.Context, db DBTX, arg UpdateOrderStatusParams) error
 }
 
