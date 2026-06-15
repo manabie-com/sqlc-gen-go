@@ -371,7 +371,7 @@ func dynArgActive(arg any) bool {
 	}
 	v := reflect.ValueOf(arg)
 	switch v.Kind() {
-	case reflect.Ptr, reflect.Interface:
+	case reflect.Ptr, reflect.Interface, reflect.Slice:
 		return !v.IsNil()
 	default:
 		return true

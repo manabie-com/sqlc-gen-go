@@ -69,13 +69,13 @@ func (b *{{.MethodName}}BatchResults) Exec(f func(int, error)) {
 {{end}}
 
 {{if eq .Cmd ":batchmany"}}
-func (b *{{.MethodName}}BatchResults) Query(f func(int, []{{.Ret.DefineType}}, error)) {
+func (b *{{.MethodName}}BatchResults) Query(f func(int, []{{.Ret.SliceType}}, error)) {
 	defer b.br.Close()
    for t := 0; t < b.tot; t++ {
      {{- if $.EmitEmptySlices}}
-     items := []{{.Ret.DefineType}}{}
+     items := []{{.Ret.SliceType}}{}
      {{else}}
-     var items []{{.Ret.DefineType}}
+     var items []{{.Ret.SliceType}}
      {{end -}}
      if b.closed {
         if f != nil {
@@ -94,7 +94,7 @@ func (b *{{.MethodName}}BatchResults) Query(f func(int, []{{.Ret.DefineType}}, e
            if err := rows.Scan({{.Ret.Scan}}); err != nil {
              return err
            }
-           items = append(items, {{.Ret.ReturnName}})
+           items = append(items, {{.Ret.SliceReturnName}})
         }
         return rows.Err()
       }()

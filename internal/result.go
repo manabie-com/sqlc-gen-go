@@ -338,6 +338,8 @@ func buildQueries(req *plugin.GenerateRequest, options *opts.Options, structs []
 				Struct:      gs,
 				SQLDriver:   sqlpkg,
 				EmitPointer: options.EmitResultStructPointers,
+
+				DisableSlicePointer: options.DisableResultSlicePointers,
 			}
 		}
 
@@ -491,7 +493,7 @@ func applyDynFilter(_ *plugin.GenerateRequest, options *opts.Options, gq *Query,
 			// Find the param number for this field
 			for _, p := range sqlParams {
 				if p.Column.Name == f.DBName && conditionalNums[int(p.Number)] {
-					if !strings.HasPrefix(f.Type, "*") {
+					if !strings.HasPrefix(f.Type, "*") && !strings.HasPrefix(f.Type, "[]") {
 						gq.Arg.Struct.Fields[i].Type = "*" + f.Type
 					}
 					break
@@ -509,8 +511,9 @@ func applyDynFilter(_ *plugin.GenerateRequest, options *opts.Options, gq *Query,
 		// Force emission of the struct
 		gq.Arg.Emit = true
 	} else if !gq.Arg.isEmpty() {
-		// Single param (not a struct) that is conditional: make it a pointer
-		if conditionalNums[1] && !strings.HasPrefix(gq.Arg.Typ, "*") {
+		// Single param (not a struct) that is conditional: make it a pointer.
+		// Slices are already nil-able, so skip wrapping for []T types.
+		if conditionalNums[1] && !strings.HasPrefix(gq.Arg.Typ, "*") && !strings.HasPrefix(gq.Arg.Typ, "[]") {
 			gq.Arg.Typ = "*" + gq.Arg.Typ
 		}
 		// If there are flag params, we need to upgrade to a struct

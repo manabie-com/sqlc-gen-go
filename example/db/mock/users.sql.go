@@ -86,10 +86,10 @@ func (mr *MockUsersQuerierMockRecorder) GetUser(ctx, arg1, arg any) *gomock.Call
 }
 
 // ListUsers mocks base method.
-func (m *MockUsersQuerier) ListUsers(ctx context.Context, arg1 db.DBTX, arg db.ListUsersParams) ([]*db.User, error) {
+func (m *MockUsersQuerier) ListUsers(ctx context.Context, arg1 db.DBTX, arg db.ListUsersParams) ([]db.User, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListUsers", ctx, arg1, arg)
-	ret0, _ := ret[0].([]*db.User)
+	ret0, _ := ret[0].([]db.User)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

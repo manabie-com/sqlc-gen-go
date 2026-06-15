@@ -9,8 +9,8 @@ version: '2'
 plugins:
 - name: golang
   wasm:
-    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v2.4.1/sqlc-gen-go.wasm
-    sha256: sha256:sha256:4b90887b709c3b531add02d8cfcc342f01d4ca50c55549df6ee101efc33cd340
+    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v3.0.0/sqlc-gen-go.wasm
+    sha256: a652e2c2c25d2b0332b4d8a8d0476e6674cda615f74090a8ead91aacba9704f3
 sql:
 - schema: schema.sql
   queries: query.sql
@@ -62,8 +62,8 @@ sql:
 plugins:
 - name: golang
   wasm:
-    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v2.4.1/sqlc-gen-go.wasm
-    sha256: sha256:sha256:4b90887b709c3b531add02d8cfcc342f01d4ca50c55549df6ee101efc33cd340
+    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v3.0.0/sqlc-gen-go.wasm
+    sha256: a652e2c2c25d2b0332b4d8a8d0476e6674cda615f74090a8ead91aacba9704f3
 sql:
 - engine: postgresql
   codegen:
@@ -225,6 +225,25 @@ Two helpers are emitted into `dynfilter.go` in the output package:
 - **`DynamicSQL(query, args)`** — one-shot helper; parses and filters on every call. Available for ad-hoc use.
 
 After filtering, remaining `$N` placeholders are renumbered sequentially and the args slice is trimmed to match, preventing "expected N arguments, got M" errors.
+
+---
+
+### `disable_result_slice_pointers`
+
+When `emit_result_struct_pointers: true` is set, `:many` queries return `[]*T` by default. Setting `disable_result_slice_pointers: true` keeps `:one` results as `*T` while changing `:many` results back to `[]T`.
+
+Requires `emit_result_struct_pointers: true`.
+
+```yaml
+options:
+  emit_result_struct_pointers: true
+  disable_result_slice_pointers: true
+```
+
+| Query command | `emit_result_struct_pointers` only | + `disable_result_slice_pointers` |
+|---|---|---|
+| `:one` | `*MyRow` | `*MyRow` |
+| `:many` | `[]*MyRow` | `[]MyRow` |
 
 ---
 

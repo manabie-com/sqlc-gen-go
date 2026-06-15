@@ -19,6 +19,7 @@ type Options struct {
 	EmitEmptySlices             bool              `json:"emit_empty_slices,omitempty" yaml:"emit_empty_slices"`
 	EmitExportedQueries         bool              `json:"emit_exported_queries" yaml:"emit_exported_queries"`
 	EmitResultStructPointers    bool              `json:"emit_result_struct_pointers" yaml:"emit_result_struct_pointers"`
+	DisableResultSlicePointers  bool              `json:"disable_result_slice_pointers,omitempty" yaml:"disable_result_slice_pointers"`
 	EmitParamsStructPointers    bool              `json:"emit_params_struct_pointers" yaml:"emit_params_struct_pointers"`
 	EmitMethodsWithDbArgument   bool              `json:"emit_methods_with_db_argument,omitempty" yaml:"emit_methods_with_db_argument"`
 	EmitPointersForNullTypes    bool              `json:"emit_pointers_for_null_types" yaml:"emit_pointers_for_null_types"`
@@ -166,6 +167,9 @@ func ValidateOpts(opts *Options) error {
 	}
 	if opts.EmitDynamicFilter && opts.EmitPreparedQueries {
 		return fmt.Errorf("invalid options: emit_dynamic_filter and emit_prepared_queries options are mutually exclusive")
+	}
+	if opts.DisableResultSlicePointers && !opts.EmitResultStructPointers {
+		return fmt.Errorf("invalid options: disable_result_slice_pointers requires emit_result_struct_pointers to be enabled")
 	}
 	if *opts.QueryParameterLimit < 0 {
 		return fmt.Errorf("invalid options: query parameter limit must not be negative")

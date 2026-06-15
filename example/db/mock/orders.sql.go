@@ -87,10 +87,10 @@ func (mr *MockOrdersQuerierMockRecorder) GetUserOrderSummary(ctx, arg1, arg any)
 }
 
 // ListOrdersByUser mocks base method.
-func (m *MockOrdersQuerier) ListOrdersByUser(ctx context.Context, arg1 db.DBTX, arg db.ListOrdersByUserParams) ([]*db.Order, error) {
+func (m *MockOrdersQuerier) ListOrdersByUser(ctx context.Context, arg1 db.DBTX, arg db.ListOrdersByUserParams) ([]db.Order, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListOrdersByUser", ctx, arg1, arg)
-	ret0, _ := ret[0].([]*db.Order)
+	ret0, _ := ret[0].([]db.Order)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

@@ -320,6 +320,84 @@ func TestSearchUsersOrderedByID(t *testing.T) {
 	})
 }
 
+func TestSearchUsersByIDs(t *testing.T) {
+	conn := setup.NewDB(t, "../schema.sql")
+	ctx := context.Background()
+	q := db.NewSearchQueries()
+
+	alice := setup.InsertUser(t, conn, "alice", "alice.ids@example.com", nil)
+	bob := setup.InsertUser(t, conn, "alice", "bob.ids@example.com", nil) // same name, different id
+
+	t.Run("NilIDs_ReturnsAll", func(t *testing.T) {
+		// nil slice → condition skipped → both users returned
+		users, err := q.SearchUsersByIDs(ctx, conn, db.SearchUsersByIDsParams{Name: "alice"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids := make(map[int64]bool, len(users))
+		for _, u := range users {
+			ids[u.ID] = true
+		}
+		if !ids[alice.ID] || !ids[bob.ID] {
+			t.Errorf("expected both alice and bob when IDs is nil, got %v", users)
+		}
+	})
+
+	t.Run("SpecificIDs_OnlyAlice", func(t *testing.T) {
+		// non-nil slice → condition active → only alice matches
+		users, err := q.SearchUsersByIDs(ctx, conn, db.SearchUsersByIDsParams{
+			Name: "alice",
+			Ids:  []int64{alice.ID},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 1 || users[0].ID != alice.ID {
+			t.Errorf("got %v, want only alice (%d)", users, alice.ID)
+		}
+	})
+
+	t.Run("MultipleIDs_BothMatch", func(t *testing.T) {
+		users, err := q.SearchUsersByIDs(ctx, conn, db.SearchUsersByIDsParams{
+			Name: "alice",
+			Ids:  []int64{alice.ID, bob.ID},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 2 {
+			t.Errorf("got %d users, want 2", len(users))
+		}
+	})
+
+	t.Run("EmptySlice_NoMatch", func(t *testing.T) {
+		// empty (non-nil) slice → condition active with empty set → no rows
+		users, err := q.SearchUsersByIDs(ctx, conn, db.SearchUsersByIDsParams{
+			Name: "alice",
+			Ids:  []int64{},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 0 {
+			t.Errorf("got %d users, want 0 for empty id list", len(users))
+		}
+	})
+
+	t.Run("IDNotInList_NoMatch", func(t *testing.T) {
+		users, err := q.SearchUsersByIDs(ctx, conn, db.SearchUsersByIDsParams{
+			Name: "alice",
+			Ids:  []int64{-1},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 0 {
+			t.Errorf("got %d users, want 0", len(users))
+		}
+	})
+}
+
 func TestSearchUsersWithSameNameAndEmail(t *testing.T) {
 	conn := setup.NewDB(t, "../schema.sql")
 	ctx := context.Background()
