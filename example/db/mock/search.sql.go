@@ -71,6 +71,21 @@ func (mr *MockSearchQuerierMockRecorder) SearchUsersByContact(ctx, arg1, arg any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchUsersByContact", reflect.TypeOf((*MockSearchQuerier)(nil).SearchUsersByContact), ctx, arg1, arg)
 }
 
+// SearchUsersByIDs mocks base method.
+func (m *MockSearchQuerier) SearchUsersByIDs(ctx context.Context, arg1 db.DBTX, arg db.SearchUsersByIDsParams) ([]db.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SearchUsersByIDs", ctx, arg1, arg)
+	ret0, _ := ret[0].([]db.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SearchUsersByIDs indicates an expected call of SearchUsersByIDs.
+func (mr *MockSearchQuerierMockRecorder) SearchUsersByIDs(ctx, arg1, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchUsersByIDs", reflect.TypeOf((*MockSearchQuerier)(nil).SearchUsersByIDs), ctx, arg1, arg)
+}
+
 // SearchUsersOrdered mocks base method.
 func (m *MockSearchQuerier) SearchUsersOrdered(ctx context.Context, arg1 db.DBTX, arg db.SearchUsersOrderedParams) ([]db.User, error) {
 	m.ctrl.T.Helper()
