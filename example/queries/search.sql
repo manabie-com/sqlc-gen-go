@@ -61,3 +61,11 @@ WHERE 1 = 1
     AND email = @name
   )
 ORDER BY id ASC;
+
+-- name: SearchUsersByIDs :many
+-- Filter by a list of IDs. When ids is nil the condition is skipped and all
+-- users matching the name are returned (nil slice = inactive filter).
+SELECT * FROM users
+WHERE name = @name
+  AND id = ANY(@ids::bigint[]) -- :if @ids
+ORDER BY id ASC;

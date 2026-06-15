@@ -277,3 +277,128 @@ func TestGenerateDynamicFilter_BlockAnnotation(t *testing.T) {
 	t.Logf("Generated:\n%s", queryFile)
 }
 
+// TestGenerateDynamicFilter_ArrayParam verifies that a conditional param whose
+// Go type is a slice ([]T) is NOT wrapped in a pointer (*[]T). Slices are
+// already nil-able, so nil means "skip this condition" without the extra level
+// of indirection.
+func TestGenerateDynamicFilter_ArrayParam(t *testing.T) {
+	req := &plugin.GenerateRequest{
+		SqlcVersion: "v1.0.0",
+		Settings:    &plugin.Settings{Engine: "postgresql"},
+		Catalog: &plugin.Catalog{
+			DefaultSchema: "public",
+			Schemas: []*plugin.Schema{{
+				Name: "public",
+				Tables: []*plugin.Table{{
+					Rel: &plugin.Identifier{Schema: "public", Name: "items"},
+					Columns: []*plugin.Column{
+						{Name: "id", NotNull: true, Type: &plugin.Identifier{Name: "bigint"}},
+						{Name: "name", NotNull: true, Type: &plugin.Identifier{Name: "text"}},
+					},
+				}},
+			}},
+		},
+		Queries: []*plugin.Query{{
+			Name:     "SearchItems",
+			Cmd:      ":many",
+			Filename: "query.sql",
+			Text:     "SELECT id, name FROM items\nWHERE name = $1\n  AND id = ANY($2) -- :if @ids",
+			Params: []*plugin.Parameter{
+				{Number: 1, Column: &plugin.Column{Name: "name", NotNull: true, Type: &plugin.Identifier{Name: "text"}}},
+				{Number: 2, Column: &plugin.Column{Name: "ids", IsArray: true, ArrayDims: 1, NotNull: true, Type: &plugin.Identifier{Name: "bigint"}}},
+			},
+			Columns: []*plugin.Column{
+				{Name: "id", NotNull: true, Type: &plugin.Identifier{Name: "bigint"}},
+				{Name: "name", NotNull: true, Type: &plugin.Identifier{Name: "text"}},
+			},
+		}},
+		PluginOptions: []byte(`{"package":"testpkg","sql_package":"pgx/v5","emit_dynamic_filter":true}`),
+		GlobalOptions: []byte(`{}`),
+	}
+
+	resp, err := Generate(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var queryFile string
+	for _, f := range resp.Files {
+		if f.Name == "query.sql.go" {
+			queryFile = string(f.Contents)
+		}
+	}
+	if queryFile == "" {
+		t.Fatal("query.sql.go not generated")
+	}
+
+	// The slice type must NOT be wrapped in a pointer.
+	if strings.Contains(queryFile, "*[]int64") {
+		t.Logf("query file:\n%s", queryFile)
+		t.Error("array param should not be wrapped in a pointer: got *[]int64, want []int64")
+	}
+	// The field must still be present as a plain slice.
+	if !strings.Contains(queryFile, "[]int64") {
+		t.Logf("query file:\n%s", queryFile)
+		t.Error("expected []int64 field for array param")
+	}
+	t.Logf("Generated:\n%s", queryFile)
+}
+
+// TestGenerateDynamicFilter_ArrayParam_Single verifies the same nil-slice logic
+// for a query with a single conditional array param (no struct wrapping).
+func TestGenerateDynamicFilter_ArrayParam_Single(t *testing.T) {
+	req := &plugin.GenerateRequest{
+		SqlcVersion: "v1.0.0",
+		Settings:    &plugin.Settings{Engine: "postgresql"},
+		Catalog: &plugin.Catalog{
+			DefaultSchema: "public",
+			Schemas: []*plugin.Schema{{
+				Name: "public",
+				Tables: []*plugin.Table{{
+					Rel:     &plugin.Identifier{Schema: "public", Name: "items"},
+					Columns: []*plugin.Column{{Name: "id", NotNull: true, Type: &plugin.Identifier{Name: "bigint"}}},
+				}},
+			}},
+		},
+		Queries: []*plugin.Query{{
+			Name:     "FilterByIDs",
+			Cmd:      ":many",
+			Filename: "query.sql",
+			Text:     "SELECT id FROM items\nWHERE id = ANY($1) -- :if @ids",
+			Params: []*plugin.Parameter{
+				{Number: 1, Column: &plugin.Column{Name: "ids", IsArray: true, ArrayDims: 1, NotNull: true, Type: &plugin.Identifier{Name: "bigint"}}},
+			},
+			Columns: []*plugin.Column{
+				{Name: "id", NotNull: true, Type: &plugin.Identifier{Name: "bigint"}},
+			},
+		}},
+		PluginOptions: []byte(`{"package":"testpkg","sql_package":"pgx/v5","emit_dynamic_filter":true}`),
+		GlobalOptions: []byte(`{}`),
+	}
+
+	resp, err := Generate(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var queryFile string
+	for _, f := range resp.Files {
+		if f.Name == "query.sql.go" {
+			queryFile = string(f.Contents)
+		}
+	}
+	if queryFile == "" {
+		t.Fatal("query.sql.go not generated")
+	}
+
+	if strings.Contains(queryFile, "*[]int64") {
+		t.Logf("query file:\n%s", queryFile)
+		t.Error("single array param should not be wrapped in a pointer: got *[]int64, want []int64")
+	}
+	if !strings.Contains(queryFile, "[]int64") {
+		t.Logf("query file:\n%s", queryFile)
+		t.Error("expected []int64 type for single array param")
+	}
+	t.Logf("Generated:\n%s", queryFile)
+}
+

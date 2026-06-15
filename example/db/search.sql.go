@@ -117,6 +117,51 @@ func (q *SearchQueries) SearchUsersByContact(ctx context.Context, db DBTX, arg S
 	return items, nil
 }
 
+const SearchUsersByIDs = `-- name: SearchUsersByIDs :many
+SELECT id, name, email, created_at, phone FROM users
+WHERE name = $1
+  AND id = ANY($2::bigint[]) -- :if $2
+ORDER BY id ASC
+`
+
+var _searchUsersByIDsDynQ = dynCompile(SearchUsersByIDs)
+
+type SearchUsersByIDsParams struct {
+	Name string
+	Ids  []int64
+}
+
+// Filter by a list of IDs. When ids is nil the condition is skipped and all
+// users matching the name are returned (nil slice = inactive filter).
+func (q *SearchQueries) SearchUsersByIDs(ctx context.Context, db DBTX, arg SearchUsersByIDsParams) ([]User, error) {
+	ctx, tracer := tracing.StartTracing(ctx, "SearchQueries.SearchUsersByIDs")
+	defer tracer.End()
+	dynQuery, dynArgs := _searchUsersByIDsDynQ.Build([]any{arg.Name, arg.Ids})
+	rows, err := db.Query(ctx, dynQuery, dynArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Email,
+			&i.CreatedAt,
+			&i.Phone,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const SearchUsersOrdered = `-- name: SearchUsersOrdered :many
 SELECT id, name, email, created_at, phone FROM users
 WHERE name = $1
@@ -350,6 +395,9 @@ type SearchQuerier interface {
 	SearchUsers(ctx context.Context, db DBTX, arg SearchUsersParams) ([]User, error)
 	// Include the combined contact filter only when BOTH email AND phone are provided.
 	SearchUsersByContact(ctx context.Context, db DBTX, arg SearchUsersByContactParams) ([]User, error)
+	// Filter by a list of IDs. When ids is nil the condition is skipped and all
+	// users matching the name are returned (nil slice = inactive filter).
+	SearchUsersByIDs(ctx context.Context, db DBTX, arg SearchUsersByIDsParams) ([]User, error)
 	SearchUsersOrdered(ctx context.Context, db DBTX, arg SearchUsersOrderedParams) ([]User, error)
 	SearchUsersOrderedByID(ctx context.Context, db DBTX, arg SearchUsersOrderedByIDParams) ([]User, error)
 	SearchUsersWithBlock(ctx context.Context, db DBTX, arg SearchUsersWithBlockParams) ([]User, error)
