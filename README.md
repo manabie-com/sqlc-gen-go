@@ -181,11 +181,12 @@ ORDER BY id ASC;
 -- name: SearchUsersOrdered :many
 SELECT * FROM users
 WHERE
-  1 = 1
+  TRUE
   AND email = @email -- :if @email
 ORDER BY
   id ASC,  -- :if @id_asc
-  id DESC  -- :if @id_desc
+  id DESC,  -- :if @id_desc
+  TRUE
 ```
 
 **Generated Go**
@@ -208,6 +209,8 @@ func (q *SearchQueries) SearchUsers(ctx context.Context, db DBTX, arg SearchUser
 ...
 }
 ```
+
+Note: We use TRUE to prevent SQL errors when a line is omitted.
 
 **Annotation rules**
 
