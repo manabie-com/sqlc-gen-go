@@ -189,6 +189,8 @@ ORDER BY
   TRUE
 ```
 
+Note: We use TRUE to prevent SQL errors when a line is omitted.
+
 **Generated Go**
 
 For SearchUsers
@@ -209,8 +211,6 @@ func (q *SearchQueries) SearchUsers(ctx context.Context, db DBTX, arg SearchUser
 ...
 }
 ```
-
-Note: We use TRUE to prevent SQL errors when a line is omitted.
 
 **Annotation rules**
 
