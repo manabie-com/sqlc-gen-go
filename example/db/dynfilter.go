@@ -103,7 +103,8 @@ func dynCompile(annotatedSQL string) *dynCompiledQuery {
 		}
 
 		// Unconditional line: accumulate into the static buffer.
-		staticBuf.WriteString(sep + line)
+		staticBuf.WriteString(sep)
+		staticBuf.WriteString(line)
 	}
 
 	flushStatic()
