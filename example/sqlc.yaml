@@ -108,4 +108,6 @@ sql:
           emit_dynamic_filter: true
           emit_exported_queries: true
           disable_result_slice_pointers: true
+          # Validate CTE/column references before code generation.
+          enable_validate_cte: true
 

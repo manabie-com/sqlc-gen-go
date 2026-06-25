@@ -180,6 +180,12 @@ func Generate(ctx context.Context, req *plugin.GenerateRequest) (*plugin.Generat
 		return nil, err
 	}
 
+	if options.EnableValidateCte {
+		if err := validateCTEReferences(req); err != nil {
+			return nil, err
+		}
+	}
+
 	enums := buildEnums(req, options)
 	structs := buildStructs(req, options)
 	queries, err := buildQueries(req, options, structs)
