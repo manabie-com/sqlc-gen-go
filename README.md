@@ -217,6 +217,42 @@ query "GetExclusiveHighValueUsers": column "amount1" not found in any table in s
 
 ---
 
+## Known Issues
+
+### Parameters in WHERE against CTE columns need an explicit type cast
+
+When a query parameter (e.g. `@since`) is compared against a column that comes from a CTE (including `UNION ALL` CTEs), sqlc cannot infer the parameter's type and raises a confusing error:
+
+```
+table alias "<cte_name>" does not exist
+```
+
+**Fix:** cast the parameter to the target type at the call site:
+
+```sql
+-- Bad: sqlc cannot infer the type of @since
+WITH all_entities AS (
+    SELECT id, created_at FROM users
+    UNION ALL
+    SELECT id, created_at FROM orders
+)
+SELECT * FROM all_entities
+WHERE all_entities.created_at >= @since;
+
+-- Good: explicit cast tells sqlc the expected type
+WITH all_entities AS (
+    SELECT id, created_at FROM users
+    UNION ALL
+    SELECT id, created_at FROM orders
+)
+SELECT * FROM all_entities
+WHERE all_entities.created_at >= @since::timestamp;
+```
+
+This is a core sqlc limitation — the plugin cannot improve the error message.
+
+---
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for build instructions, how to run tests, and benchmarks.
