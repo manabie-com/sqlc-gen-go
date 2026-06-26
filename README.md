@@ -147,13 +147,14 @@ ORDER BY
 
 Use `TRUE` as the leading predicate (and trailing `ORDER BY` term) so the clause stays valid when lines are omitted.
 
+All conditions skip when the referenced param is nil/false.
+
 | Style | Syntax | Behaviour |
 |---|---|---|
-| Top-level | `-- :if @param` on its own line | Skip the **next** line if param is nil/false |
+| Top-level | `-- :if @param` on its own line | Skip the **next** line |
 | Top-level (multi-param) | `-- :if @a @b` on its own line | Skip the **next** line if **any** listed param is nil/false |
-| Top-level Block `( )` | `-- :if @flag` then a line opening `(` | Skip the **entire block** (until matching `)`) if flag is nil/false |
-
-Two helpers are emitted into `dynfilter.go`: `dynCompile(query)` (default — pre-compiled once at init, called per request via `.Build(args)`) and `DynamicSQL(query, args)` (one-shot, parses on every call). Both renumber remaining `$N` placeholders and trim args to match.
+| Top-level Block `( )` | `-- :if @flag` then a line opening `(` | Skip the **entire block** (until matching `)`) |
+| Inline | `expression -- :if @param` | Skip the expression (including trailing comma) |
 
 ---
 
