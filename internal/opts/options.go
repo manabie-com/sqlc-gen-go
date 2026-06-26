@@ -51,7 +51,6 @@ type Options struct {
 	GoGenerateMock              string            `json:"go_generate_mock,omitempty" yaml:"go_generate_mock"`
 	EmitDynamicFilter           bool              `json:"emit_dynamic_filter,omitempty" yaml:"emit_dynamic_filter"`
 	WrapErrors                  bool              `json:"wrap_errors,omitempty" yaml:"wrap_errors"`
-	EnableValidateCte           bool              `json:"enable_validate_cte,omitempty" yaml:"enable_validate_cte"`
 	// nil inherits EmitPointersForNullTypes; non-nil overrides for enums only.
 	EmitPointersForNullEnumTypes *bool `json:"emit_pointers_for_null_enum_types,omitempty" yaml:"emit_pointers_for_null_enum_types"`
 
