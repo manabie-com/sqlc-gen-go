@@ -9,9 +9,6 @@ import (
 	"github.com/sqlc-dev/plugin-sdk-go/plugin"
 )
 
-// anyParamRe matches ANY($N) where N is a positional param number.
-var anyParamRe = regexp.MustCompile(`(?i)\bANY\s*\(\s*\$(\d+)\s*\)`)
-
 // ifAnnotationRe matches "-- :if @p1 [@p2 ...]" or "-- :if $p1 [$p2 ...]" at end of line.
 var ifAnnotationRe = regexp.MustCompile(`--\s*:if\s+[@$]\w+(?:\s+[@$]\w+)*\s*$`)
 
@@ -76,26 +73,6 @@ func ParseDynFilter(sql string, params []*plugin.Parameter) (*DynFilterInfo, err
 	for _, p := range params {
 		if p.Column.Name != "" {
 			paramByName[p.Column.Name] = p.Number
-		}
-	}
-
-	// Validate ANY($N) usage: the param must have an array type (::type[]).
-	paramByNumber := make(map[int32]*plugin.Parameter)
-	for _, p := range params {
-		paramByNumber[p.Number] = p
-	}
-	for _, m := range anyParamRe.FindAllStringSubmatch(sql, -1) {
-		num := int32(0)
-		for _, ch := range m[1] {
-			num = num*10 + int32(ch-'0')
-		}
-		p, ok := paramByNumber[num]
-		if !ok || p.Column == nil {
-			continue
-		}
-		if !p.Column.IsArray && !p.Column.IsSqlcSlice {
-			name := p.Column.Name
-			return nil, fmt.Errorf("ANY(@%s) requires an array type cast (e.g. @%s::type[]); without it the query will fail at runtime", name, name)
 		}
 	}
 
