@@ -9,8 +9,8 @@ version: '2'
 plugins:
 - name: golang
   wasm:
-    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v3.0.0/sqlc-gen-go.wasm
-    sha256: a652e2c2c25d2b0332b4d8a8d0476e6674cda615f74090a8ead91aacba9704f3
+    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v3.2.1/sqlc-gen-go.wasm
+    sha256: 2f6799f25e4e8750551ccbe1073bf8a612683e287956eef97a913d37c8ab43c2
 sql:
 - schema: schema.sql
   queries: query.sql
@@ -62,8 +62,8 @@ sql:
 plugins:
 - name: golang
   wasm:
-    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v3.0.0/sqlc-gen-go.wasm
-    sha256: a652e2c2c25d2b0332b4d8a8d0476e6674cda615f74090a8ead91aacba9704f3
+    url: https://github.com/vtuanjs/sqlc-gen-go/releases/download/v3.2.1/sqlc-gen-go.wasm
+    sha256: 2f6799f25e4e8750551ccbe1073bf8a612683e287956eef97a913d37c8ab43c2
 sql:
 - engine: postgresql
   codegen:
@@ -156,10 +156,45 @@ When a parameter is marked with `:if`, the generated code:
 - Adds a `bool` field for flag-only parameters (e.g. ORDER BY toggles that appear only in `:if` annotations, not as `col = $N` predicate values)
 - Calls the generated `DynamicSQL()` helper at runtime to strip inactive lines and renumber placeholders
 
+A `:if`-gated parameter is *inactive* (clause skipped) when it is a nil pointer, a `false` bool, or a **nil** slice. An empty non-nil slice keeps the clause and renders `NULL` (matching zero rows): nil means "no filter requested", empty means "filter by the empty set" — the fail-closed default for computed lists such as permission scopes.
+
 ```yaml
 options:
   emit_dynamic_filter: true
 ```
+
+**Call-site helpers**
+
+Filter values usually arrive as plain values from a request or form, where "empty" means "the user did not fill this in". These generic helpers, emitted into `dynfilter.go`, convert them at the call site — all are compile-time-only wrappers with no effect on query building:
+
+| Helper | Use when |
+|---|---|
+| `Nilable(v)` | Zero value means "don't filter" — `""`, `0`, `false`, the zero `time.Time` become `nil`. Works for any comparable type. |
+| `NilableSlice(s)` | Empty slice means "don't filter" rather than "filter by the empty set" |
+| `NilableIf(v, keep)` | Something *other than* the value decides whether to filter, so a zero value can stay active |
+| `Ptr(v)` | Always filter, even on a zero value (match the empty string, or `stock = 0`) |
+
+```go
+users, err := q.SearchUsers(ctx, db, db.SearchUsersParams{
+    Name:  form.Name,
+    Email: db.Nilable(form.Email),                       // "" → nil → clause skipped
+    Stock: db.NilableIf(form.MinStock, form.ByStock),    // 0 stays an active filter
+})
+
+items, err := q.SearchUsersByIDs(ctx, db, db.SearchUsersByIDsParams{
+    Ids: db.NilableSlice(ids), // empty → nil → clause skipped
+})
+```
+
+**Engine support** — PostgreSQL, SQLite, and MySQL. The emitted `dynfilter.go` runtime is keyed to the configured `engine`:
+
+| Engine | Input placeholders | Output placeholders |
+|---|---|---|
+| `postgresql` | `$N` (`?` is always operator text, e.g. jsonb `?`) | `$N` |
+| `sqlite` | numbered `?N` or `$N` | `$N` (bound positionally by SQLite) |
+| `mysql` | bare `?`, numbered by appearance | `?` (selected by the engine alone; `sql_driver` is not required) |
+
+**`sqlc.slice()` in dynamic queries** — `/*SLICE:name*/` markers are numbered at generation time and expanded at `Build` time into one placeholder per element (the expansion is reused when the same slice parameter appears more than once on numbered-placeholder engines). A nil or empty slice renders `NULL`, matching sqlc's non-dynamic expansion — and when the slice is itself the `:if` condition, nil skips the clause entirely while empty keeps it (see above).
 
 **SQL annotations**
 
@@ -167,16 +202,24 @@ options:
 -- name: SearchUsers :many
 SELECT * FROM users
 WHERE
-  1 = 1
-  AND email = @email           -- :if @email        -- omit this line if email is nil (inline style)
-  -- :if @phone                                     -- omit the next line if phone is nil (top-level style)
-  AND phone = @phone           
-  AND EXISTS (                 -- :if @has_orders   -- flag-only boolean; omit this block when false
+  TRUE
+  -- :if @email
+  AND email = @email
+  -- :if @phone
+  AND phone = @phone
+  -- :if @has_orders
+  AND EXISTS (
     SELECT 1 FROM orders
     WHERE orders.user_id = users.id
-      AND orders.created_at >= @orders_since  -- :if @orders_since
+      -- :if @orders_since
+      AND orders.created_at >= @orders_since
   )
 ORDER BY id ASC;
+```
+
+Every annotation here uses the top-level style: the comment sits on its own line and gates the line that follows it (omit `AND email = @email` when `email` is nil, and so on). `@has_orders` is a flag-only boolean, and because the line it gates opens a paren block, a `false` value omits the whole `EXISTS (…)` block. The `:if` annotation must be the last thing on its line — text after it is not parsed.
+
+```sql
 
 -- name: SearchUsersOrdered :many
 SELECT * FROM users
@@ -185,8 +228,42 @@ WHERE
   AND email = @email -- :if @email
 ORDER BY
   id ASC,  -- :if @id_asc
-  id DESC  -- :if @id_desc
+  -- :if @id_desc
+  id DESC,
+  TRUE
 ```
+
+This one mixes both styles: `-- :if @email` and `-- :if @id_asc` are inline (trailing the line they gate), while `-- :if @id_desc` is top-level (gating the `id DESC,` line below it). The two styles can be combined freely in the same query.
+
+**Use `TRUE` sentinels to keep the query valid**
+
+Removing a line can leave syntax that no longer parses: a leading `AND`, a dangling comma, or a clause keyword with nothing under it. Write every removable line so it is *independently* droppable, by anchoring the clause with a static entry:
+
+- `WHERE TRUE` first, so every condition line can begin with `AND` — otherwise dropping the first condition leaves `WHERE AND b = …`
+- a trailing `TRUE` in `ORDER BY`, so every entry can end with `,` — otherwise dropping the last entry leaves `ORDER BY id ASC,`
+
+`1 = 1` works equally well if you prefer it. The same rule applies to any comma-separated list: a removable `SELECT` column must not be the first or last entry.
+
+`Build` does repair two cases on its own, but **only on the query's last line** — it deliberately does not rescan the whole query on every call, which would put per-line work on the hot path of every request:
+
+| Leftover on the last line | Repair |
+|---|---|
+| Line ends in `,` | The dangling comma is stripped |
+| Line is only a clause keyword (`WHERE`, `ORDER BY`, `GROUP BY`, `HAVING`) | The keyword line is removed, cascading upward |
+
+So a fully conditional `ORDER BY` at the very end of a query cleans itself up, but the same clause followed by `LIMIT 10`, `FOR UPDATE`, or a closing `)` does not — those need the sentinel:
+
+```sql
+SELECT * FROM t
+WHERE a = @a
+ORDER BY
+  id ASC,  -- :if @id_asc
+  id DESC, -- :if @id_desc
+  TRUE
+LIMIT 10
+```
+
+**Engine caveat** — sqlc's SQLite parser discards a `-- :if` comment that sits on a statement's last line, so on SQLite an annotation must never be the final token before the `;`. A trailing `TRUE` sentinel satisfies this too. sqlc's MySQL parser has no `@name` syntax at all: bind values with `sqlc.arg()`/`sqlc.slice()`, while the `-- :if @name` annotation still refers to parameters by name.
 
 **Generated Go**
 
@@ -224,7 +301,9 @@ Two helpers are emitted into `dynfilter.go` in the output package:
 - **`dynCompile(query)`** — default behavior; pre-compiles the annotated SQL once at package init into a `dynCompiledQuery`. Each generated query uses this via a package-level `var _..DynQ = dynCompile(...)`, then calls `.Build(args)` per request with no per-call scanning.
 - **`DynamicSQL(query, args)`** — one-shot helper; parses and filters on every call. Available for ad-hoc use.
 
-After filtering, remaining `$N` placeholders are renumbered sequentially and the args slice is trimmed to match, preventing "expected N arguments, got M" errors.
+After filtering, remaining placeholders are renumbered sequentially (`$N` output for PostgreSQL/SQLite, `?` for MySQL) and the args slice is trimmed to match, preventing "expected N arguments, got M" errors.
+
+**Lexical context** — annotations and bind markers are only recognized in SQL code. String literals (including PostgreSQL dollar-quoted `$$…$$` / `$tag$…$tag$` and `E'…'` escape strings, and MySQL backslash-escaped quotes), quoted identifiers (`"…"`, MySQL backticks, SQLite `[…]`), and comments (with PostgreSQL comment nesting) are opaque: `-- :if` or `$N`/`?N` text inside them is never rewritten or counted. String literals may span lines; a line that *begins* inside an open string or comment is treated as continuation text and is never scanned for annotations, so a real `-- :if` annotation must start on a line that begins in SQL code.
 
 ---
 
@@ -290,43 +369,72 @@ Key areas at 100%: `enum.go`, `field.go` (all case-style helpers), `inflection/s
 
 ### Generated code (`example/test/`)
 
-Unit tests for the generated Go code — no database required. Covers `DynamicSQL` SQL-building logic, generated query SQL strings, and dynamic filter / ORDER BY combinations.
+Unit tests for the generated Go code — no database required. Covers `DynamicSQL` SQL-building logic, generated query SQL strings, and dynamic filter / ORDER BY combinations. Each generated package accepts its engine's input placeholders (PostgreSQL `$N`; SQLite numbered `?N`; MySQL bare `?`) and normalizes active ones to its engine's output placeholders.
 
 ```sh
 cd example
 go test ./test/... -v
 ```
 
-**51 passing test cases** across:
+**99 passing test cases** across:
 
 | Test | Sub-tests | What is covered |
 |---|---|---|
-| `TestDynamicSQL` | 22 | Placeholder remapping, gap handling, ORDER BY clauses, orphaned WHERE/GROUP BY/HAVING cleanup, EXISTS blocks |
+| `TestDynamicSQL` | 36 | Placeholder remapping, gap handling, ORDER BY clauses, last-line cleanup of orphaned WHERE/GROUP BY/HAVING, `TRUE`-sentinel clauses followed by `LIMIT`, EXISTS blocks, empty-slice gating, `NilableSlice` |
+| `TestDynamicSQL_LexicalContext` | 16 | Markers inside string literals (incl. dollar-quoted, `E'…'`, backslash-escaped, multi-line), quoted identifiers, nested comments |
+| `TestDynamicSQLSlices` | 7 | `sqlc.slice()` expansion, repeated and empty slices, slice-marker edge cases across all three engines |
 | `TestSearchUsers` | 9 | Optional email/phone/date filter combinations on generated search query |
 | `TestSearchUsersOrdered` | 4 | ORDER BY flag combinations |
 | `TestSearchUsersByContact` | 4 | Multi-param optional filter |
 | `TestSearchUsersWithSameNameAndEmail` | 2 | Nil vs non-nil shared-column filter |
 | `TestSearchUsersWithBlock` | 2 | EXISTS block conditional inclusion |
 | `TestSearchUsersWithTopStyle` | 2 | Top-level `:if` annotation style |
+| `TestNilable` | 7 | `Nilable` over text, numbers, bools, `time.Time`; zero → nil, copy semantics |
+| `TestNilableIf` | 2 | `NilableIf` keeping a zero value as an active filter |
+| `TestPtr` | 2 | `Ptr` on zero values and non-comparable types |
 | `TestSearchUsersOrderedByID` | 4 | ASC/DESC flag combinations with optional filters |
 | `TestGetUserWithLock` | 2 | `FOR UPDATE` / `FOR SHARE` SQL generation |
 
-### End-to-end (`example/e2e/`)
+### End-to-end
 
-Integration tests that run queries against a real PostgreSQL database (`postgres://postgres:postgres@localhost:6432/sqlc-test`). Covers the same scenarios as the unit tests but validates actual query execution and result mapping.
+Each engine has its own e2e package (`example/e2e-postgres/`, `example/e2e-mysql/`, `example/e2e-sqlite/`) testing its generated package (`dbpostgres`, `dbmysql`, `dbsqlite`). `make example-e2e` runs all three; per-engine targets exist too:
 
 ```sh
-make example-e2e
+make example-e2e            # all engines (postgres + mysql via docker compose)
+make example-e2e-postgres
+make example-e2e-mysql
+make example-e2e-sqlite     # in-memory, no docker
 ```
 
-| Test | What is covered |
-|---|---|
-| `TestSearchUsers` | Optional email/phone/date filters against real rows |
-| `TestSearchUsersOrdered` | ORDER BY flag combinations |
-| `TestSearchUsersByContact` | Multi-param optional filter |
-| `TestSearchUsersWithSameNameAndEmail` | Nil vs non-nil shared-column filter |
-| `TestSearchUsersOrderedByID` | ASC/DESC flag combinations with optional filters |
-| `TestGetUserWithLock` | `FOR UPDATE` / `FOR SHARE` locking |
+Each engine declares its own copy of the query set in `example/{postgres,mysql,sqlite}/queries/` — same query names, same schema, engine-idiomatic SQL — and the three suites run the **same list of tests**, so a behaviour difference between engines shows up as a failing test rather than as untested divergence. The only exception is marked `n/a`: SQLite has no `FOR UPDATE`.
+
+| Test | What is covered | pg | mysql | sqlite |
+|---|---|---|---|---|
+| `TestSearchUsers` | Optional email/phone/date filters against real rows | ✅ | ✅ | ✅ |
+| `TestSearchUsersOrdered` | ORDER BY flag combinations | ✅ | ✅ | ✅ |
+| `TestSearchUsersOrderedByID` | ASC/DESC flag combinations with optional filters | ✅ | ✅ | ✅ |
+| `TestSearchUsersByContact` | Multi-param optional filter | ✅ | ✅ | ✅ |
+| `TestSearchUsersByIDs` | `sqlc.slice()` gating: nil, populated, empty, `NilableSlice` | ✅ | ✅ | ✅ |
+| `TestSearchUsersWithSameNameAndEmail` | One parameter gating and filling two conditions | ✅ | ✅ | ✅ |
+| `TestSearchUsersWithBlock` | Gated paren block, inline and top-level annotation styles | ✅ | ✅ | ✅ |
+| `TestGetUserWithLock` | `FOR UPDATE` gated by a flag-only parameter | ✅ | ✅ | n/a |
+| `TestSearchUsersWithPhone` | Flag-only parameter gating a clause that binds no value | ✅ | ✅ | ✅ |
+| `TestDynamicFilter` | Optional filter between two required params (placeholder renumbering) + `sqlc.slice()` gating | ✅ | ✅ | ✅ |
+| `TestUserCRUD` | `RETURNING` / `:execlastid` inserts, IN-list, update, count, delete | ✅ | ✅ | ✅ |
+| `TestOrderQueries` | `:execrows` affected-row counts, LEFT JOIN aggregate row, ordering | ✅ | ✅ | ✅ |
+| `TestProductQueries` | Nullable-column round-trips, scalar-column selects, delete | ✅ | ✅ | ✅ |
+
+### PostgreSQL end-to-end (`example/e2e-postgres/`)
+
+66 sub-tests against a real PostgreSQL 16 (`postgres://postgres:postgres@localhost:6432/sqlc-test`) via `pgx/v5`, exercising the `emit_per_file_queries` + `emit_tracing` + pointer-result configuration. `emit_err_nil_if_no_rows` means a missing row is `(nil, nil)` rather than `pgx.ErrNoRows`, which the CRUD tests assert directly.
+
+### MySQL end-to-end (`example/e2e-mysql/`)
+
+65 sub-tests against a real MySQL 8 (`root:mysql@tcp(localhost:6603)/sqlc-test`) via `database/sql`. MySQL has no `RETURNING`, so inserts use `:execlastid`; nullable columns surface as `sql.NullString`/`sql.NullInt32` (this config does not set `emit_pointers_for_null_types`), and a `:if`-gated nullable column parameter is therefore a `*sql.NullString`.
+
+### SQLite end-to-end (`example/e2e-sqlite/`)
+
+62 sub-tests through `database/sql` with no Docker — each test gets its own `:memory:` database. SQLite supports `RETURNING`, so inserts come back as full rows. It has no `FOR UPDATE`, so `TestGetUserWithLock` is the one test it cannot run; the flag-only-parameter case it covers is `TestSearchUsersWithPhone`, which runs on all three engines.
 
 ---
 
@@ -377,3 +485,15 @@ Results on Intel Core i7-11800H @ 2.30GHz.
 - **For the all-optional large query, PreCompiled is 2.3× faster than manual** — `Build` writes pre-split string literals directly vs `fmt.Fprintf` per condition.
 - **Allocations drop from 46–126 down to 3–10**, matching or beating manual.
 - A typical DB round-trip is ~1 ms; PreCompiled overhead is ~150–800 ns — effectively free in practice.
+
+## Contributors
+
+GitHub hides the Contributors graph on forked repositories, so the list is rendered here instead.
+
+<a href="https://github.com/vtuanjs/sqlc-gen-go/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=vtuanjs/sqlc-gen-go" alt="Contributors" />
+</a>
+
+Made with [contrib.rocks](https://contrib.rocks).
+
+This project is a fork of [sqlc-dev/sqlc-gen-go](https://github.com/sqlc-dev/sqlc-gen-go) — thanks to the upstream [sqlc](https://github.com/sqlc-dev/sqlc) maintainers and contributors whose work this builds on.

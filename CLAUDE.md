@@ -16,7 +16,7 @@ go test ./internal/... -run TestName
 go test ./internal/opts/... -fuzz FuzzOverride
 ```
 
-The WASM build requires `GOOS=wasip1 GOARCH=wasm`. The `make test` target builds the WASM first because integration tests depend on it. E2E tests against a real database live in `example/e2e/` and are run separately (`make example-e2e`).
+The WASM build requires `GOOS=wasip1 GOARCH=wasm`. The `make test` target builds the WASM first because integration tests depend on it. E2E tests against real databases live in `example/e2e-postgres/`, `example/e2e-mysql/`, and `example/e2e-sqlite/` and are run separately (`make example-e2e`, or per-engine `example-e2e-{postgres,mysql,sqlite}` targets).
 
 ## Architecture
 
@@ -73,6 +73,10 @@ Output files generated:
 - Params annotated with `:if` become pointer types (`*T`); `nil` skips the condition
 - Flag-only params (not SQL params) are added as `bool` fields
 - `dynCompile()` and `DynamicSQL()` helpers emitted into `dynfilter.go`; generated queries use `dynCompile` (pre-compiled) by default
+- `dynfilterCode.tmpl` is a single source that emits **engine-tailored** code: `{{if}}` blocks keyed on `$pg`/`$mysql`/`$sqlite` (resolved at generation time) select the SQL lexer dialect and placeholder style, so `dynfilter.go` contains no runtime engine flags. PostgreSQL gets dollar-quoting/`E''`/nested-comment lexing and `$N` output; SQLite adds `[ident]` and `?N` input with `$N` output; MySQL uses positional `?` in and out (and drops `dynWriteInt`/`dynWritePlaceholder` entirely)
+- Call-site helpers in `dynfilter.go`: `Nilable(v)` (zero → nil), `NilableSlice(s)` (empty → nil), `NilableIf(v, keep)`, `Ptr(v)` — all compile-time only
+- After removing lines, `dynFinalizeQuery()` strips a dangling comma / orphaned clause keyword on the query's **last line only** — deliberately, to keep `Build` off a per-line rescan on every request. Queries anchor clauses with static `TRUE` sentinels instead (`WHERE TRUE`, trailing `TRUE` in `ORDER BY`); required whenever `LIMIT`/`FOR UPDATE`/`)` follows the conditional lines
+- Engine caveat: sqlc's **MySQL** parser has no `@name` syntax (use `sqlc.arg()`/`sqlc.slice()`; the `-- :if @name` annotation still refers to params by name), and its **SQLite** parser discards a `-- :if` comment sitting on a statement's last line, so an annotation must never be the final token before the `;`
 
 **`emit_tracing`** — injects custom tracing code into every query method via a Go template:
 ```yaml
