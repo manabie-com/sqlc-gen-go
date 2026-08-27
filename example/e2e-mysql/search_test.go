@@ -1,0 +1,613 @@
+package e2emysql
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"example/dbmysql"
+)
+
+func TestSearchUsers(t *testing.T) {
+	db := newDB(t)
+	ctx := context.Background()
+	q := dbmysql.New(db)
+
+	alice1 := insertUser(t, db, "alice", "alice@example.com", strPtr("+1111111111"))
+	insertUser(t, db, "alice", "alice2@example.com", nil)
+	bob := insertUser(t, db, "bob", "bob@example.com", nil)
+	insertOrder(t, db, alice1.ID, time.Now().Add(-24*time.Hour))
+
+	t.Run("NoOptionalFilters", func(t *testing.T) {
+		users, err := q.SearchUsers(ctx, dbmysql.SearchUsersParams{Name: "alice"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 2 {
+			t.Errorf("got %d users, want 2", len(users))
+		}
+	})
+
+	t.Run("EmailFilter", func(t *testing.T) {
+		users, err := q.SearchUsers(ctx, dbmysql.SearchUsersParams{
+			Name:  "alice",
+			Email: strPtr("alice@example.com"),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 1 || users[0].ID != alice1.ID {
+			t.Errorf("got %v, want alice1", users)
+		}
+	})
+
+	t.Run("Nilable/EmptyEmailSkipsFilter", func(t *testing.T) {
+		// Nilable turns the zero value into nil, so an unfilled form field
+		// leaves the clause out instead of matching on "".
+		users, err := q.SearchUsers(ctx, dbmysql.SearchUsersParams{
+			Name:  "alice",
+			Email: dbmysql.Nilable(""),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 2 {
+			t.Errorf("got %d users, want 2 (clause skipped)", len(users))
+		}
+	})
+
+	t.Run("Nilable/NonEmptyEmailFilters", func(t *testing.T) {
+		users, err := q.SearchUsers(ctx, dbmysql.SearchUsersParams{
+			Name:  "alice",
+			Email: dbmysql.Nilable("alice@example.com"),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 1 || users[0].ID != alice1.ID {
+			t.Errorf("got %v, want alice1", users)
+		}
+	})
+
+	t.Run("PhoneFilter", func(t *testing.T) {
+		users, err := q.SearchUsers(ctx, dbmysql.SearchUsersParams{
+			Name:  "alice",
+			Phone: nullStr("+1111111111"),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 1 || users[0].ID != alice1.ID {
+			t.Errorf("got %v, want alice1", users)
+		}
+	})
+
+	t.Run("HasOrders_False", func(t *testing.T) {
+		users, err := q.SearchUsers(ctx, dbmysql.SearchUsersParams{
+			Name:      "alice",
+			HasOrders: false,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 2 {
+			t.Errorf("got %d users, want 2", len(users))
+		}
+	})
+
+	t.Run("HasOrders_True", func(t *testing.T) {
+		users, err := q.SearchUsers(ctx, dbmysql.SearchUsersParams{
+			Name:      "alice",
+			HasOrders: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 1 || users[0].ID != alice1.ID {
+			t.Errorf("got %v, want only alice1 (has order)", users)
+		}
+	})
+
+	t.Run("HasOrders_True_WithOrdersSince_Match", func(t *testing.T) {
+		since := time.Now().Add(-48 * time.Hour)
+		users, err := q.SearchUsers(ctx, dbmysql.SearchUsersParams{
+			Name:        "alice",
+			HasOrders:   true,
+			OrdersSince: &since,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 1 || users[0].ID != alice1.ID {
+			t.Errorf("got %v, want alice1", users)
+		}
+	})
+
+	t.Run("HasOrders_True_WithOrdersSince_NoMatch", func(t *testing.T) {
+		since := time.Now().Add(time.Hour) // future — no orders qualify
+		users, err := q.SearchUsers(ctx, dbmysql.SearchUsersParams{
+			Name:        "alice",
+			HasOrders:   true,
+			OrdersSince: &since,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 0 {
+			t.Errorf("got %d users, want 0", len(users))
+		}
+	})
+
+	t.Run("OrdersSinceWithoutHasOrders_Ignored", func(t *testing.T) {
+		// orders_since lives inside the EXISTS block; with has_orders false the
+		// whole block is dropped and the date is never bound.
+		since := time.Now().Add(time.Hour)
+		users, err := q.SearchUsers(ctx, dbmysql.SearchUsersParams{
+			Name:        "alice",
+			OrdersSince: &since,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 2 {
+			t.Errorf("got %d users, want 2", len(users))
+		}
+	})
+
+	t.Run("NoMatch", func(t *testing.T) {
+		users, err := q.SearchUsers(ctx, dbmysql.SearchUsersParams{Name: bob.Name})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 1 || users[0].ID != bob.ID {
+			t.Errorf("got %v, want bob", users)
+		}
+	})
+}
+
+func TestSearchUsersOrdered(t *testing.T) {
+	db := newDB(t)
+	ctx := context.Background()
+	q := dbmysql.New(db)
+
+	a1 := insertUser(t, db, "alice", "alice.a@example.com", nil)
+	insertUser(t, db, "alice", "alice.b@example.com", nil)
+
+	t.Run("NoOrderFlags", func(t *testing.T) {
+		users, err := q.SearchUsersOrdered(ctx, dbmysql.SearchUsersOrderedParams{Name: "alice"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 2 {
+			t.Errorf("got %d users, want 2", len(users))
+		}
+		// default order is id ASC
+		if users[0].ID > users[1].ID {
+			t.Errorf("expected id ASC, got %d > %d", users[0].ID, users[1].ID)
+		}
+	})
+
+	t.Run("EmailFilter", func(t *testing.T) {
+		users, err := q.SearchUsersOrdered(ctx, dbmysql.SearchUsersOrderedParams{
+			Name:  "alice",
+			Email: strPtr("alice.a@example.com"),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 1 || users[0].ID != a1.ID {
+			t.Errorf("got %v, want a1", users)
+		}
+	})
+
+	t.Run("OrderCreatedAtDesc", func(t *testing.T) {
+		users, err := q.SearchUsersOrdered(ctx, dbmysql.SearchUsersOrderedParams{
+			Name:               "alice",
+			OrderCreatedAtDesc: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 2 {
+			t.Errorf("got %d users, want 2", len(users))
+		}
+	})
+
+	t.Run("OrderNameAsc", func(t *testing.T) {
+		users, err := q.SearchUsersOrdered(ctx, dbmysql.SearchUsersOrderedParams{
+			Name:         "alice",
+			OrderNameAsc: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 2 {
+			t.Errorf("got %d users, want 2", len(users))
+		}
+	})
+}
+
+func TestSearchUsersByContact(t *testing.T) {
+	db := newDB(t)
+	ctx := context.Background()
+	q := dbmysql.New(db)
+
+	alice := insertUser(t, db, "alice", "alice@example.com", strPtr("+1111111111"))
+	insertUser(t, db, "alice", "other@example.com", strPtr("+9999999999"))
+
+	t.Run("BothNil", func(t *testing.T) {
+		users, err := q.SearchUsersByContact(ctx, dbmysql.SearchUsersByContactParams{Name: "alice"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// no contact filter → all alices returned
+		if len(users) != 2 {
+			t.Errorf("got %d users, want 2", len(users))
+		}
+	})
+
+	t.Run("OnlyEmail_FilterSkipped", func(t *testing.T) {
+		// the clause requires BOTH params, so one alone leaves it inactive
+		users, err := q.SearchUsersByContact(ctx, dbmysql.SearchUsersByContactParams{
+			Name:  "alice",
+			Email: strPtr("alice@example.com"),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 2 {
+			t.Errorf("got %d users, want 2 (clause needs email AND phone)", len(users))
+		}
+	})
+
+	t.Run("EmailAndPhone_Match", func(t *testing.T) {
+		users, err := q.SearchUsersByContact(ctx, dbmysql.SearchUsersByContactParams{
+			Name:  "alice",
+			Email: strPtr("alice@example.com"),
+			Phone: nullStr("+1111111111"),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 1 || users[0].ID != alice.ID {
+			t.Errorf("got %v, want alice", users)
+		}
+	})
+
+	t.Run("EmailAndPhone_NoMatch", func(t *testing.T) {
+		users, err := q.SearchUsersByContact(ctx, dbmysql.SearchUsersByContactParams{
+			Name:  "alice",
+			Email: strPtr("nobody@example.com"),
+			Phone: nullStr("+0000000000"),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 0 {
+			t.Errorf("got %d users, want 0", len(users))
+		}
+	})
+}
+
+func TestSearchUsersOrderedByID(t *testing.T) {
+	db := newDB(t)
+	ctx := context.Background()
+	q := dbmysql.New(db)
+
+	a1 := insertUser(t, db, "alice", "alice.x@example.com", nil)
+	a2 := insertUser(t, db, "alice", "alice.y@example.com", nil)
+
+	t.Run("NoOrderFlags", func(t *testing.T) {
+		// Both flags false → ORDER BY removed entirely, query still valid.
+		users, err := q.SearchUsersOrderedByID(ctx, dbmysql.SearchUsersOrderedByIDParams{
+			Name: "alice",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 2 {
+			t.Errorf("got %d users, want 2", len(users))
+		}
+	})
+
+	t.Run("IDAsc", func(t *testing.T) {
+		users, err := q.SearchUsersOrderedByID(ctx, dbmysql.SearchUsersOrderedByIDParams{
+			Name:  "alice",
+			IdAsc: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 2 {
+			t.Fatalf("got %d users, want 2", len(users))
+		}
+		if users[0].ID != a1.ID || users[1].ID != a2.ID {
+			t.Errorf("expected id ASC order: got [%d, %d]", users[0].ID, users[1].ID)
+		}
+	})
+
+	t.Run("IDDesc", func(t *testing.T) {
+		users, err := q.SearchUsersOrderedByID(ctx, dbmysql.SearchUsersOrderedByIDParams{
+			Name:   "alice",
+			IdDesc: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 2 {
+			t.Fatalf("got %d users, want 2", len(users))
+		}
+		if users[0].ID != a2.ID || users[1].ID != a1.ID {
+			t.Errorf("expected id DESC order: got [%d, %d]", users[0].ID, users[1].ID)
+		}
+	})
+
+	t.Run("IDAscAndIDDesc", func(t *testing.T) {
+		users, err := q.SearchUsersOrderedByID(ctx, dbmysql.SearchUsersOrderedByIDParams{
+			Name:   "alice",
+			IdAsc:  true,
+			IdDesc: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 2 {
+			t.Errorf("got %d users, want 2", len(users))
+		}
+	})
+
+	t.Run("WithEmailFilter", func(t *testing.T) {
+		users, err := q.SearchUsersOrderedByID(ctx, dbmysql.SearchUsersOrderedByIDParams{
+			Name:   "alice",
+			Email:  strPtr("alice.x@example.com"),
+			IdAsc:  true,
+			IdDesc: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 1 || users[0].ID != a1.ID {
+			t.Errorf("got %v, want a1", users)
+		}
+	})
+}
+
+func TestSearchUsersByIDs(t *testing.T) {
+	db := newDB(t)
+	ctx := context.Background()
+	q := dbmysql.New(db)
+
+	alice := insertUser(t, db, "alice", "alice.ids@example.com", nil)
+	bob := insertUser(t, db, "alice", "bob.ids@example.com", nil) // same name, different id
+
+	t.Run("NilIDs_ReturnsAll", func(t *testing.T) {
+		// nil slice → condition skipped → both users returned
+		users, err := q.SearchUsersByIDs(ctx, dbmysql.SearchUsersByIDsParams{Name: "alice"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids := make(map[int64]bool, len(users))
+		for _, u := range users {
+			ids[u.ID] = true
+		}
+		if !ids[alice.ID] || !ids[bob.ID] {
+			t.Errorf("expected both alice and bob when IDs is nil, got %v", users)
+		}
+	})
+
+	t.Run("SpecificIDs_OnlyAlice", func(t *testing.T) {
+		users, err := q.SearchUsersByIDs(ctx, dbmysql.SearchUsersByIDsParams{
+			Name: "alice",
+			Ids:  []int64{alice.ID},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 1 || users[0].ID != alice.ID {
+			t.Errorf("got %v, want only alice (%d)", users, alice.ID)
+		}
+	})
+
+	t.Run("MultipleIDs_BothMatch", func(t *testing.T) {
+		users, err := q.SearchUsersByIDs(ctx, dbmysql.SearchUsersByIDsParams{
+			Name: "alice",
+			Ids:  []int64{alice.ID, bob.ID},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 2 {
+			t.Errorf("got %d users, want 2", len(users))
+		}
+	})
+
+	t.Run("EmptySlice_MatchesNothing", func(t *testing.T) {
+		// empty non-nil slice → condition active → IN (NULL) → zero rows
+		users, err := q.SearchUsersByIDs(ctx, dbmysql.SearchUsersByIDsParams{
+			Name: "alice",
+			Ids:  []int64{},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 0 {
+			t.Errorf("got %d users, want 0 for empty id list (filter by empty set)", len(users))
+		}
+	})
+
+	t.Run("NilableSlice_EmptySkipsCondition", func(t *testing.T) {
+		users, err := q.SearchUsersByIDs(ctx, dbmysql.SearchUsersByIDsParams{
+			Name: "alice",
+			Ids:  dbmysql.NilableSlice([]int64{}),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 2 {
+			t.Errorf("got %d users, want 2 for NilableSlice(empty) (clause skipped)", len(users))
+		}
+	})
+
+	t.Run("IDNotInList_NoMatch", func(t *testing.T) {
+		users, err := q.SearchUsersByIDs(ctx, dbmysql.SearchUsersByIDsParams{
+			Name: "alice",
+			Ids:  []int64{-1},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 0 {
+			t.Errorf("got %d users, want 0", len(users))
+		}
+	})
+}
+
+func TestSearchUsersWithSameNameAndEmail(t *testing.T) {
+	db := newDB(t)
+	ctx := context.Background()
+	q := dbmysql.New(db)
+
+	// "dual" user: name and email are the same string — matches both conditions.
+	dual := insertUser(t, db, "dual", "dual", nil)
+	// "normal" user: name matches the search term but email differs.
+	normal := insertUser(t, db, "dual", "dual@example.com", nil)
+
+	t.Run("NameNil_ReturnsAll", func(t *testing.T) {
+		users, err := q.SearchUsersWithSameNameAndEmail(ctx, dbmysql.SearchUsersWithSameNameAndEmailParams{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids := make(map[int64]bool, len(users))
+		for _, u := range users {
+			ids[u.ID] = true
+		}
+		if !ids[dual.ID] || !ids[normal.ID] {
+			t.Errorf("expected both dual and normal to be returned when Name is nil")
+		}
+	})
+
+	t.Run("NameProvided_OnlyDualUser", func(t *testing.T) {
+		// Both name = ? AND email = ? must hold, bound from the same param.
+		users, err := q.SearchUsersWithSameNameAndEmail(ctx, dbmysql.SearchUsersWithSameNameAndEmailParams{
+			Name: strPtr("dual"),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 1 || users[0].ID != dual.ID {
+			t.Errorf("got %v, want only dual user (%d)", users, dual.ID)
+		}
+	})
+
+	t.Run("NameProvided_NoMatch", func(t *testing.T) {
+		users, err := q.SearchUsersWithSameNameAndEmail(ctx, dbmysql.SearchUsersWithSameNameAndEmailParams{
+			Name: strPtr("nobody"),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 0 {
+			t.Errorf("got %d users, want 0", len(users))
+		}
+	})
+}
+
+func TestSearchUsersWithBlock(t *testing.T) {
+	db := newDB(t)
+	ctx := context.Background()
+	q := dbmysql.New(db)
+
+	dual := insertUser(t, db, "dual", "dual", nil)
+	other := insertUser(t, db, "other", "other.block@example.com", nil)
+
+	// Both queries express the same gated block, differing only in where the
+	// `-- :if` annotation sits: trailing on the opening paren vs. on its own
+	// line above the block.
+	t.Run("Trailing/NameNil_BlockDropped", func(t *testing.T) {
+		users, err := q.SearchUsersWithBlock(ctx, dbmysql.SearchUsersWithBlockParams{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids := idSet(users)
+		if !ids[dual.ID] || !ids[other.ID] {
+			t.Errorf("expected all users when Name is nil, got %v", users)
+		}
+	})
+
+	t.Run("Trailing/NameProvided", func(t *testing.T) {
+		users, err := q.SearchUsersWithBlock(ctx, dbmysql.SearchUsersWithBlockParams{
+			Name: strPtr("dual"),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 1 || users[0].ID != dual.ID {
+			t.Errorf("got %v, want dual", users)
+		}
+	})
+
+	t.Run("TopStyle/NameNil_BlockDropped", func(t *testing.T) {
+		users, err := q.SearchUsersWithTopStyle(ctx, dbmysql.SearchUsersWithTopStyleParams{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids := idSet(users)
+		if !ids[dual.ID] || !ids[other.ID] {
+			t.Errorf("expected all users when Name is nil, got %v", users)
+		}
+	})
+
+	t.Run("TopStyle/NameProvided", func(t *testing.T) {
+		users, err := q.SearchUsersWithTopStyle(ctx, dbmysql.SearchUsersWithTopStyleParams{
+			Name: strPtr("dual"),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 1 || users[0].ID != dual.ID {
+			t.Errorf("got %v, want dual", users)
+		}
+	})
+}
+
+func idSet(users []dbmysql.User) map[int64]bool {
+	ids := make(map[int64]bool, len(users))
+	for _, u := range users {
+		ids[u.ID] = true
+	}
+	return ids
+}
+
+// TestSearchUsersWithPhone covers a flag-only parameter: with_phone gates a
+// clause that binds no value.
+func TestSearchUsersWithPhone(t *testing.T) {
+	db := newDB(t)
+	ctx := context.Background()
+	q := dbmysql.New(db)
+
+	withPhone := insertUser(t, db, "alice", "alice.phone@example.com", strPtr("+1111111111"))
+	insertUser(t, db, "alice", "alice.nophone@example.com", nil)
+
+	t.Run("FlagOff", func(t *testing.T) {
+		users, err := q.SearchUsersWithPhone(ctx, dbmysql.SearchUsersWithPhoneParams{Name: "alice"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 2 {
+			t.Errorf("got %d users, want 2", len(users))
+		}
+	})
+
+	t.Run("FlagOn", func(t *testing.T) {
+		users, err := q.SearchUsersWithPhone(ctx, dbmysql.SearchUsersWithPhoneParams{
+			Name:      "alice",
+			WithPhone: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(users) != 1 || users[0].ID != withPhone.ID {
+			t.Errorf("got %v, want only the user with a phone", users)
+		}
+	})
+}

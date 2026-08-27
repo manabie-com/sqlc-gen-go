@@ -1,0 +1,33 @@
+CREATE TABLE filter_items (
+    id   BIGSERIAL PRIMARY KEY,
+    kind TEXT NOT NULL,
+    a    TEXT NOT NULL,
+    b    TEXT NOT NULL,
+    c    TEXT NOT NULL
+);
+
+CREATE INDEX filter_items_a_c_idx ON filter_items (a, c);
+
+CREATE TABLE users (
+    id   BIGSERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    phone TEXT
+);
+
+CREATE TABLE orders (
+    id         BIGSERIAL PRIMARY KEY,
+    user_id    BIGINT NOT NULL REFERENCES users(id),
+    amount     NUMERIC(10,2) NOT NULL,
+    status     TEXT NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE products (
+    id         BIGSERIAL PRIMARY KEY,
+    name       TEXT,
+    price      NUMERIC(10,2) NOT NULL,
+    stock      INT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
